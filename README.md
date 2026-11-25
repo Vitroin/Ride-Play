@@ -107,10 +107,17 @@ You need to see over 5 km/h twice in a row to count as moving, and fall below ab
 
 **Check it yourself:** the GPS badge shows accuracy (e.g. `GPS ±5 m`). **Long-press the speed dial** for a diagnostics line: the speed source, the raw reading, and moving/stopped. GPS needs open sky; indoors you'll mostly see 0.
 
+## Handy gestures
+
+- **Rearrange the app icons:** long-press any icon in the side dock; the icons jiggle and you can drag them into the order you like. Tap **Done** (or anywhere outside the dock) to finish.
+- **Full-width map:** the button next to "Where to?" hides the panel; the small "Where to?" pill brings it back.
+- **Saved places:** tap one to see the route on the map, then **Go** (or **Open in Apple Maps**).
+
 ## Known iOS limits
 
 - Location stops when the screen locks or you switch apps. Keep Moto Dash on screen while riding.
 - If the screen still dims, set **Settings → Display & Brightness → Auto-Lock → Never** for rides.
+- Shuffle can be switched on/off from Moto Dash, but **Smart Shuffle** can only be turned on in the Spotify app: Spotify's Web API doesn't offer it. Moto Dash shows when it's on.
 - Music actually plays in the Spotify app. Moto Dash is a remote control, and Spotify requires **Premium** for that.
 - Map © OpenStreetMap contributors, tiles © CARTO (free for light personal use). Routing by Valhalla on the FOSSGIS server, search by Photon (komoot).
 

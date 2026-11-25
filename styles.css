@@ -125,6 +125,16 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
 }
 .dock-home[aria-current="page"] { background: var(--text); color: var(--bg); }
 
+/* Rearranging: long-press an app icon → icons jiggle (only while editing) and follow your finger. */
+.dock { touch-action: none; }
+.dock-done { display: none; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14px; align-items: center; justify-content: center; }
+body.dock-edit .dock-done { display: inline-flex; }
+body.dock-edit .dock-status { display: none; }
+@keyframes jiggle { 0%, 100% { rotate: -2.5deg; } 50% { rotate: 2.5deg; } }
+body.dock-edit .dock-apps .app-icon { animation: jiggle 0.3s ease-in-out infinite; }
+body.dock-edit .dock-apps .app-icon:nth-child(2n) { animation-delay: -0.15s; }
+.dock-apps .app-icon.dragging { animation: none !important; z-index: 5; scale: 1.12; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45); transition: scale 0.15s, box-shadow 0.15s !important; }
+
 /* ---------- screens ---------- */
 .screen {
   position: absolute; inset: 0;
@@ -264,7 +274,7 @@ body[data-playing="true"] .i-play { display: none !important; }
   clip-path: inset(0 round 22px);   /* reliable corner clipping on iOS Safari */
 }
 .maps.browsing .map { left: calc(var(--ml) + var(--panel-w) + 10px); }
-.maps.browsing.panel-hidden .map { left: var(--ml); }
+.maps.browsing.map-wide .map { left: var(--ml); }
 .leaflet-container { background: var(--map-bg); font-family: inherit; }
 .leaflet-control-attribution { background: color-mix(in srgb, var(--card) 85%, transparent) !important; color: var(--muted) !important; font-size: 10px !important; border-radius: 8px; margin: 0 14px 8px 0 !important; }
 .leaflet-control-attribution a { color: var(--text) !important; }
@@ -276,6 +286,17 @@ body[data-playing="true"] .i-play { display: none !important; }
 .dest-panel {
   top: var(--mt); bottom: var(--mb); left: var(--ml);
   width: var(--panel-w); padding: 10px; display: flex; flex-direction: column; gap: 10px;
+}
+/* Hide/show the Where-to panel: it slides off to the left while the pill springs in. */
+#maps-browse { transition: transform 0.34s var(--ease-out), opacity 0.24s ease, visibility 0s linear 0s; }
+.maps.panel-hidden #maps-browse {
+  transform: translateX(calc(-100% - 24px)); opacity: 0; visibility: hidden; pointer-events: none;
+  transition: transform 0.34s var(--ease-out), opacity 0.22s ease 0.08s, visibility 0s linear 0.34s;
+}
+.where-pill { transition: opacity 0.22s ease 0.12s, transform 0.4s var(--ease-spring) 0.08s, visibility 0s linear 0s; }
+.maps:not(.panel-hidden) .where-pill {
+  opacity: 0; transform: translateX(-14px) scale(0.85); visibility: hidden; pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.16s ease, visibility 0s linear 0.16s;
 }
 .panel-head { display: flex; align-items: center; gap: 8px; flex: none; }
 .panel-head .search { flex: 1; min-width: 0; }
@@ -356,10 +377,12 @@ body[data-playing="true"] .i-play { display: none !important; }
 .source-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--green); padding-right: 4px; }
 .tab-panel { flex: 1; min-height: 0; }
 
-.now { display: flex; align-items: center; gap: 26px; padding: 0 8px; }
-.now-art { position: relative; height: 100%; max-height: 300px; aspect-ratio: 1; flex: none; border-radius: 14px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+/* Like the speed dial: the cover is sized from .now's own box (container units), because iOS
+   Safari doesn't resolve height:100% + aspect-ratio here and the cover collapsed in landscape. */
+.now { display: flex; align-items: center; gap: 26px; padding: 0 8px; container-type: size; }
+.now-art { position: relative; width: min(100cqh, 300px, 46cqw); height: min(100cqh, 300px, 46cqw); flex: none; border-radius: 14px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 .now-art .art-ph { font-size: 64px; }
-.now-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.now-info { flex: 1; min-width: 0; max-height: 100%; display: flex; flex-direction: column; }
 .now-title { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-artist { font-size: 18px; font-weight: 600; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-album { font-size: 14px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -381,6 +404,7 @@ body[data-playing="true"] .i-play { display: none !important; }
 }
 .mode-btn [data-icon] { font-size: 15px; }
 .mode-btn[aria-pressed="true"] { background: var(--text); color: var(--art-ink, var(--bg)); }
+.mode-btn.smart::after { content: "✦"; font-size: 11px; margin-left: -2px; }
 
 .list-tab { display: flex; flex-direction: column; gap: 10px; }
 .list-head { display: flex; align-items: center; gap: 12px; flex: none; }
@@ -400,13 +424,30 @@ body[data-playing="true"] .i-play { display: none !important; }
 .liked-more { grid-column: 1 / -1; height: 4px; }
 .list-msg { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--muted); font-size: 15px; padding: 16px; border: 1px dashed var(--card-3); border-radius: 16px; }
 
-.playlist-grid { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 14px; align-content: start; padding: 2px 2px 10px; }
+.playlist-grid { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 14px; align-content: start; padding: 2px 2px 10px; }
 .pl-tile { border: none; background: transparent; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pl-cover { position: relative; width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--card-2); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 34px; }
 .pl-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .pl-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-meta { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -4px; }
 .pl-tile.current .pl-name { color: var(--green); }
+
+@container (max-height: 290px) {
+  .now-title { font-size: 22px; }
+  .now-artist { font-size: 16px; }
+  .now-album { display: none; }
+  .seek { margin-top: 6px; }
+  .now-controls { margin-top: 0; }
+  .glyph { width: 56px; height: 56px; font-size: 26px; }
+  .glyph-main { width: 68px; height: 68px; font-size: 38px; }
+  .now-modes { margin-top: 2px; }
+  .mode-btn { height: 34px; font-size: 13px; }
+}
+@container (max-height: 220px) {
+  .now-artist { font-size: 14px; }
+  .glyph { width: 48px; height: 48px; font-size: 22px; }
+  .glyph-main { width: 56px; height: 56px; font-size: 32px; }
+}
 
 /* ---------- settings ---------- */
 .settings { overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -604,10 +645,10 @@ body.saver [data-music="img"] { display: none !important; }
   .login { grid-template-columns: 1fr; }
   .settings-grid, .liked-list { grid-template-columns: 1fr; }
   .maps.browsing .map { left: var(--ml); top: 45%; }
-  .maps.browsing.panel-hidden .map { top: var(--mt); }
+  .maps.browsing.map-wide .map { top: var(--mt); }
   .dest-panel { width: auto; right: var(--mr); bottom: calc(55% + 10px); }
   .now { flex-direction: column; padding: 0; }
-  .now-art { height: 45%; }
+  .now-art { width: min(45cqh, 100cqw); height: min(45cqh, 100cqw); }
   .turn, .eta { width: calc(100% - 24px); }
   .mini-music { display: none; }
 }

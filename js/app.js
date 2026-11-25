@@ -62,6 +62,109 @@ document.addEventListener('click', (e) => {
   if (go) show(go.dataset.go);
 });
 
+// ================================================================ dock: rearrange the app icons
+// Long-press an icon (like the iPhone Home Screen): the icons jiggle and follow your finger.
+// Tap Done, or anywhere outside the dock, to finish. The order is saved on this phone.
+const dockApps = $('.dock-apps');
+function applyDockOrder() {
+  const order = settings.dockOrder || [];
+  const rank = (b) => { const i = order.indexOf(b.dataset.go); return i < 0 ? 99 : i; };
+  $$('.app-icon', dockApps).sort((a, b) => rank(a) - rank(b)).forEach((b) => dockApps.append(b));
+}
+const saveDockOrder = () => { settings.dockOrder = $$('.app-icon', dockApps).map((b) => b.dataset.go); saveSettings(); };
+const dockEdit = {
+  on: false, press: null, drag: null, swallowClick: false,
+  start() {
+    if (this.on) return;
+    this.on = true;
+    document.body.classList.add('dock-edit');
+    toast('Drag the icons to rearrange them', 1800);
+  },
+  stop() {
+    if (!this.on) return;
+    this.on = false;
+    document.body.classList.remove('dock-edit');
+    saveDockOrder();
+  },
+  vertical: () => getComputedStyle(dockApps).flexDirection.startsWith('column'),
+  offset: (el, v) => (v ? el.offsetTop : el.offsetLeft),
+
+  beginDrag(icon, e) {
+    const v = this.vertical();
+    this.drag = { icon, id: e.pointerId, v, start: v ? e.clientY : e.clientX, home: this.offset(icon, v) };
+    icon.classList.add('dragging');
+    icon.style.transition = 'none';
+    try { icon.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+  },
+  moveDrag(e) {
+    const d = this.drag;
+    const want = d.home + ((d.v ? e.clientY : e.clientX) - d.start);   // where the icon should be (layout px)
+    const icons = $$('.app-icon', dockApps);
+    const others = icons.filter((b) => b !== d.icon);
+    const size = d.v ? d.icon.offsetHeight : d.icon.offsetWidth;
+    // New slot = how many other icons have their centre before the dragged icon's centre.
+    const slot = others.filter((b) => this.offset(b, d.v) < want).length;
+    if (icons.indexOf(d.icon) !== slot) {
+      const before = new Map(others.map((b) => [b, this.offset(b, d.v)]));
+      dockApps.insertBefore(d.icon, others[slot] || null);
+      for (const b of others) {                       // FLIP: neighbours slide into their new place
+        const delta = before.get(b) - this.offset(b, d.v);
+        if (!delta) continue;
+        b.style.transition = 'none';
+        b.style.transform = d.v ? `translateY(${delta}px)` : `translateX(${delta}px)`;
+        void b.offsetWidth;
+        b.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        b.style.transform = '';
+      }
+    }
+    void size;
+    const shift = want - this.offset(d.icon, d.v);
+    d.icon.style.transform = d.v ? `translateY(${shift}px)` : `translateX(${shift}px)`;
+  },
+  endDrag() {
+    const d = this.drag;
+    if (!d) return;
+    this.drag = null;
+    d.icon.classList.remove('dragging');
+    d.icon.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+    d.icon.style.transform = '';
+    saveDockOrder();
+  },
+};
+dockApps.addEventListener('pointerdown', (e) => {
+  const icon = e.target.closest('.app-icon');
+  if (!icon) return;
+  if (dockEdit.on) { dockEdit.swallowClick = true; dockEdit.beginDrag(icon, e); return; }
+  const sx = e.clientX, sy = e.clientY;
+  dockEdit.press = {
+    sx, sy,
+    timer: setTimeout(() => {
+      dockEdit.press = null;
+      dockEdit.swallowClick = true;
+      dockEdit.start();
+      dockEdit.beginDrag(icon, e);
+    }, 450),
+  };
+});
+window.addEventListener('pointermove', (e) => {
+  const pr = dockEdit.press;
+  if (pr && Math.hypot(e.clientX - pr.sx, e.clientY - pr.sy) > 10) { clearTimeout(pr.timer); dockEdit.press = null; }
+  if (dockEdit.drag && e.pointerId === dockEdit.drag.id) dockEdit.moveDrag(e);
+}, { passive: true });
+const endPress = (e) => {
+  if (dockEdit.press) { clearTimeout(dockEdit.press.timer); dockEdit.press = null; }
+  if (dockEdit.drag && e.pointerId === dockEdit.drag.id) dockEdit.endDrag();
+};
+window.addEventListener('pointerup', endPress);
+window.addEventListener('pointercancel', endPress);
+// While rearranging (and for the tap that started it), icon taps don't open screens.
+dockApps.addEventListener('click', (e) => {
+  if (dockEdit.on || dockEdit.swallowClick) { e.stopPropagation(); e.preventDefault(); }
+  dockEdit.swallowClick = false;
+}, true);
+$('#dock-done').addEventListener('click', () => dockEdit.stop());
+document.addEventListener('pointerdown', (e) => { if (dockEdit.on && !e.target.closest('.dock')) dockEdit.stop(); }, true);
+
 // ================================================================ theme / saver
 const mqLight = matchMedia('(prefers-color-scheme: light)');
 const resolvedTheme = () => (settings.theme === 'auto' ? (mqLight.matches ? 'light' : 'dark') : settings.theme);
@@ -332,9 +435,34 @@ $('#btn-voice').addEventListener('click', () => {
 $('#btn-recenter').addEventListener('click', () => nav?.recenter());
 
 // The "Where to?" panel can be tucked away for a full-width map, and comes back as a small pill.
+// Animated: the panel slides while the map stays perfectly still. Hiding widens the map at once
+// (under the sliding panel); showing narrows it only once the panel has slid in. Each time the
+// map's box changes, it's panned by the same amount, so the streets don't jump.
+let panelTimer = null;
+function setMapWide(wide) {
+  const el = $('#screen-maps');
+  if (el.classList.contains('map-wide') === wide) return;
+  const before = $('#map').getBoundingClientRect();
+  el.classList.toggle('map-wide', wide);
+  if (!nav) return;
+  const after = $('#map').getBoundingClientRect();
+  nav.map.invalidateSize({ pan: false });
+  nav.map.panBy([after.left - before.left, after.top - before.top], { animate: false });
+  if (nav.follow && nav.lastPos) setTimeout(() => nav.map.panTo([nav.lastPos.lat, nav.lastPos.lng], { animate: !settings.saver, duration: 0.35 }), 360);
+}
 function setMapPanel(state) {
   settings.mapPanel = state; saveSettings();
-  if (current === 'maps' && mapMode === 'browse') setMapMode('browse');
+  if (current !== 'maps' || mapMode !== 'browse') return;
+  const el = $('#screen-maps');
+  clearTimeout(panelTimer);
+  if (state === 'hidden') {
+    $('#search-input').blur();
+    el.classList.add('panel-hidden');
+    setMapWide(true);
+  } else {
+    el.classList.remove('panel-hidden');
+    panelTimer = setTimeout(() => setMapWide(false), 340);
+  }
 }
 $('#btn-panel-hide').addEventListener('click', () => setMapPanel('hidden'));
 $('#btn-panel-show').addEventListener('click', () => setMapPanel('open'));
@@ -364,10 +492,12 @@ function setMapMode(mode) {
   mapMode = mode;
   const hidePanel = mode === 'browse' && settings.mapPanel === 'hidden';
   const el = $('#screen-maps');
+  clearTimeout(panelTimer);
   el.classList.toggle('browsing', mode !== 'guide');
   el.classList.toggle('panel-hidden', hidePanel);
-  $('#maps-browse').hidden = mode !== 'browse' || hidePanel;
-  $('#btn-panel-show').hidden = mode !== 'browse' || !hidePanel;
+  el.classList.toggle('map-wide', hidePanel);
+  $('#maps-browse').hidden = mode !== 'browse';
+  $('#btn-panel-show').hidden = mode !== 'browse';
   $('#maps-place').hidden = mode !== 'preview';
   $('#maps-guide').hidden = mode !== 'guide';
   $('#btn-voice').hidden = mode !== 'guide';
@@ -488,7 +618,7 @@ const pickImage = (imgs, prefer = 300) => {
   return (sorted.find((i) => (i.width || 0) >= prefer) || sorted[sorted.length - 1]).url;
 };
 
-const player = { item: null, isPlaying: false, progress: 0, duration: 0, at: 0, shuffle: false, repeat: 'off', contextUri: '' };
+const player = { item: null, isPlaying: false, progress: 0, duration: 0, at: 0, shuffle: false, smartShuffle: false, repeat: 'off', contextUri: '' };
 let nowUri = '';
 let lastArt = '';
 
@@ -502,7 +632,10 @@ function renderMusic(p) {
   }
   Object.assign(player, {
     item, isPlaying: !!p?.is_playing, progress: p?.progress_ms || 0, duration: item?.duration_ms || 0, at: Date.now(),
-    shuffle: !!p?.shuffle_state, repeat: p?.repeat_state || 'off', contextUri: p?.context?.uri || '',
+    shuffle: modes.settle('shuffle', !!p?.shuffle_state),
+    smartShuffle: !!p?.smart_shuffle && !modes.pending.shuffle,
+    repeat: modes.settle('repeat', p?.repeat_state || 'off'),
+    contextUri: p?.context?.uri || '',
   });
   if (!item) {
     set('title', 'Nothing playing'); set('artist', 'Pick something below or in Spotify'); set('album', ' ');
@@ -514,9 +647,7 @@ function renderMusic(p) {
     set('status', p.is_playing ? 'Playing' : 'Paused');
   }
   setPlaying(player.isPlaying);
-  $('#btn-shuf').setAttribute('aria-pressed', String(player.shuffle));
-  $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
-  $('#btn-repeat').setAttribute('aria-label', `Repeat: ${player.repeat}`);
+  renderShuffle();
   renderRepeat();
 
   const images = item?.album?.images || item?.images || [];
@@ -531,6 +662,50 @@ function renderMusic(p) {
   progress.paint();
   progress.sync();
 }
+
+function renderShuffle() {
+  const b = $('#btn-shuf');
+  const smart = player.shuffle && player.smartShuffle;
+  b.setAttribute('aria-pressed', String(player.shuffle));
+  b.classList.toggle('smart', smart);
+  b.setAttribute('aria-label', smart ? 'Smart Shuffle' : player.shuffle ? 'Shuffle: on' : 'Shuffle: off');
+  b.lastElementChild.textContent = smart ? 'Smart Shuffle' : 'Shuffle';
+}
+
+/**
+ * Shuffle & Repeat. Taps change the button at once; the request to Spotify goes out 350 ms
+ * after the last tap (so fast tapping sends one request, not a pile that arrive out of order),
+ * and until Spotify reports the new value, polls can't flip the button back to the old one.
+ */
+const modes = {
+  pending: {},   // kind → { value, until }
+  timers: {},
+  /** The value to show: Spotify's, unless we're still waiting for it to apply our change. */
+  settle(kind, server) {
+    const p = this.pending[kind];
+    if (!p) return server;
+    if (server === p.value || Date.now() > p.until) { delete this.pending[kind]; return server; }
+    return p.value;
+  },
+  request(kind, value) {
+    player[kind] = value;
+    if (kind === 'shuffle') player.smartShuffle = false;
+    this.pending[kind] = { value, until: Date.now() + 8000 };
+    if (kind === 'shuffle') renderShuffle(); else renderRepeat();
+    clearTimeout(this.timers[kind]);
+    this.timers[kind] = setTimeout(async () => {
+      try {
+        await (kind === 'shuffle' ? spotify.setShuffle(value) : spotify.setRepeat(value));
+        if (this.pending[kind]) this.pending[kind].until = Date.now() + 4000;  // time for Spotify to apply it
+        setTimeout(() => music.kick(), 900);
+      } catch (e) {
+        delete this.pending[kind];
+        handleSpotifyError(e);
+        music.kick();
+      }
+    }, 350);
+  },
+};
 
 function renderRepeat() {
   $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
@@ -614,14 +789,14 @@ document.addEventListener('click', (e) => {
   else if (a === 'prev') control(() => spotify.previous());
 });
 $('#btn-shuf').addEventListener('click', () => {
-  player.shuffle = !player.shuffle; $('#btn-shuf').setAttribute('aria-pressed', String(player.shuffle));
-  control(() => spotify.setShuffle(player.shuffle));
+  // Spotify's Web API can only switch normal shuffle on/off; Smart Shuffle is shown but
+  // can only be turned on in the Spotify app.
+  if (player.smartShuffle) toast('Smart Shuffle can only be changed in the Spotify app', 2600);
+  modes.request('shuffle', !player.shuffle);
 });
 $('#btn-repeat').addEventListener('click', () => {
-  player.repeat = { off: 'context', context: 'track', track: 'off' }[player.repeat] || 'off';
-  renderRepeat();
-  toast({ off: 'Repeat off', context: 'Repeat all', track: 'Repeat this song' }[player.repeat], 1200);
-  control(() => spotify.setRepeat(player.repeat));
+  modes.request('repeat', { off: 'context', context: 'track', track: 'off' }[player.repeat] || 'off');
+  toast({ off: 'Repeat off', context: 'Repeat all', track: 'Repeat this song' }[player.repeat], 1000);
 });
 $('#seek-bar').addEventListener('click', (e) => {
   if (!player.duration) return;
@@ -851,6 +1026,7 @@ function enterApp() { gps.start(); show('dash'); }
 // ================================================================ boot
 async function boot() {
   hydrateIcons();
+  applyDockOrder();
   applyTheme(); applySaver(); applyVoice(); applyUnits();
   scheduleClock();
   if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('./sw.js').catch(() => {});
