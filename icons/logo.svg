@@ -1,24 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1B1838"/>
-      <stop offset="1" stop-color="#07070D"/>
+      <stop offset="0" stop-color="#1B1838"/><stop offset="1" stop-color="#07070D"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.52" r="0.5">
-      <stop offset="0" stop-color="#FF5A1F" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#FF5A1F" stop-opacity="0"/>
+    <radialGradient id="glow" cx="0.5" cy="0.56" r="0.5">
+      <stop offset="0" stop-color="#FF5A1F" stop-opacity="0.30"/><stop offset="1" stop-color="#FF5A1F" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="arc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#FFB524"/>
-      <stop offset="0.5" stop-color="#FF5A1F"/>
-      <stop offset="1" stop-color="#FF2D78"/>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB524"/><stop offset="0.55" stop-color="#FF5A1F"/><stop offset="1" stop-color="#FF2D78"/>
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <circle cx="512" cy="532" r="420" fill="url(#glow)"/>
-  <!-- speed-dial arc (ride) -->
-  <path d="M 299.9 744.1 A 300 300 0 1 1 724.1 744.1" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="72" stroke-linecap="round"/>
-  <path d="M 299.9 744.1 A 300 300 0 1 1 724.1 744.1" fill="none" stroke="url(#arc)" stroke-width="72" stroke-linecap="round" stroke-dasharray="1060 2000"/>
-  <!-- play triangle (music) -->
-  <path d="M 452 412 L 452 652 L 660 532 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="44" stroke-linejoin="round"/>
+  <circle cx="512" cy="560" r="430" fill="url(#glow)"/>
+
+  <!-- speed lines -->
+  <g stroke="#FFFFFF" stroke-linecap="round" stroke-width="22" opacity="0.32">
+    <line x1="78" y1="438" x2="188" y2="438"/>
+    <line x1="112" y1="500" x2="214" y2="500"/>
+    <line x1="78" y1="562" x2="172" y2="562"/>
+  </g>
+
+  <!-- front fork + swingarm (behind the body) -->
+  <g stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" fill="none">
+    <path d="M 760 672 L 700 470"/>
+    <path d="M 296 672 L 478 600"/>
+  </g>
+
+  <!-- wheels -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="42">
+    <circle cx="296" cy="672" r="134"/>
+    <circle cx="760" cy="672" r="134"/>
+  </g>
+  <circle cx="296" cy="672" r="32" fill="#FFFFFF"/>
+  <circle cx="760" cy="672" r="32" fill="#FFFFFF"/>
+
+  <!-- sport-bike body: raised tail, seat, tank, fairing nose -->
+  <path d="M 236 430 L 300 456 L 468 476 L 528 426 L 618 404 L 676 400 L 742 446 L 772 486 L 736 530 L 690 572 L 598 606 L 470 606 L 402 552 L 296 500 Z"
+        fill="url(#body)" stroke="url(#body)" stroke-width="26" stroke-linejoin="round"/>
+  <!-- windscreen -->
+  <path d="M 648 402 L 690 362 L 724 420 Z" fill="#FFFFFF" opacity="0.55" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="12" stroke-linejoin="round"/>
+  <!-- seat & engine shading -->
+  <path d="M 304 462 L 466 482" fill="none" stroke="#14122B" stroke-width="18" stroke-linecap="round" opacity="0.5"/>
+  <path d="M 490 548 L 600 548 L 584 594 L 504 594 Z" fill="#14122B" opacity="0.4"/>
+  <!-- headlight -->
+  <path d="M 748 466 L 772 486 L 752 500 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
 </svg>

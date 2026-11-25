@@ -13,7 +13,7 @@ You need **Git** and the **GitHub CLI** (`gh`) installed. Then, in this folder, 
 - **Mac / Linux:** `./setup-github.sh`
 - **Windows:** `powershell -ExecutionPolicy Bypass -File .\setup-github.ps1`
 
-The script signs you in to GitHub (in the browser), creates a public `moto-dash` repo, pushes the code and turns on GitHub Pages. Your app will be at `https://<username>.github.io/moto-dash/`.
+The script signs you in to GitHub (in the browser), creates a public `ride-play` repo, pushes the code and turns on GitHub Pages. Your app will be at `https://<username>.github.io/moto-dash/`.
 
 From then on, every push to `main` redeploys automatically (`.github/workflows/deploy.yml`), and phones get the new version the next time they open the app.
 
@@ -23,7 +23,7 @@ From then on, every push to `main` redeploys automatically (`.github/workflows/d
 ## 2. Spotify app (Client ID)
 
 1. Go to https://developer.spotify.com/dashboard → **Create app**.
-2. **Redirect URI:** your exact site URL, including the trailing slash, e.g. `https://username.github.io/moto-dash/`.
+2. **Redirect URI:** your exact site URL, including the trailing slash, e.g. `https://username.github.io/Ride-Play/`.
    (The app's Setup screen shows the exact value it will use.)
 3. Under "Which API/SDKs", tick **Web API**, then save.
 4. Copy the **Client ID**. You don't need a client secret; this app uses PKCE.

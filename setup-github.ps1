@@ -1,6 +1,6 @@
 # One-time setup (Windows): creates the GitHub repo, pushes the code, turns on GitHub Pages.
-# Usage:  powershell -ExecutionPolicy Bypass -File .\setup-github.ps1 [-Repo moto-dash]
-param([string]$Repo = "moto-dash")
+# Usage:  powershell -ExecutionPolicy Bypass -File .\setup-github.ps1 [-Repo ride-play]
+param([string]$Repo = "ride-play")
 # "Continue": in Windows PowerShell 5.1, "Stop" turns gh/git stderr output into fatal errors.
 $ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot

@@ -3,7 +3,7 @@
 # Usage:  ./setup-github.sh            (public repo, free Pages)
 #         ./setup-github.sh my-name    (custom repo name)
 set -euo pipefail
-REPO="${1:-moto-dash}"
+REPO="${1:-ride-play}"
 cd "$(dirname "$0")"
 
 command -v git >/dev/null || { echo "Install Git first: https://git-scm.com/downloads"; exit 1; }
