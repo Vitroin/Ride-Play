@@ -329,6 +329,12 @@
 </div>
 
 <button id="dock-show" class="dock-show" type="button" aria-label="Show the side bar"><span data-icon="chevron"></span></button>
+<div id="wake" class="card wake" role="alertdialog" aria-labelledby="wake-title" hidden>
+  <span class="wake-ic" data-icon="music"></span>
+  <div class="wake-text"><b id="wake-title">Spotify went to sleep</b><small>iPhone pauses it after a long pause. Open it, come back, and RidePlay picks up where you left off.</small></div>
+  <button id="wake-open" class="btn-pill green" type="button">Open Spotify</button>
+  <button id="wake-close" class="btn-round wake-x" type="button" aria-label="Dismiss"><span data-icon="close"></span></button>
+</div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="dimmer" class="dimmer" aria-hidden="true"></div>
 

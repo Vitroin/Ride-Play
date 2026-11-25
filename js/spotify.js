@@ -114,22 +114,39 @@ async function api(path, { method = 'GET', body } = {}, retried = false) {
   return j;
 }
 
-export const getPlayer = () => api('/me/player');
+const LAST_DEVICE = 'md.spotify.device';
 
-/** If no device is active, wake the phone's Spotify app (or the first device). */
+/** Current playback. Also remembers which device was playing, to reconnect to it later. */
+export async function getPlayer() {
+  const p = await api('/me/player');
+  if (p?.device?.id) localStorage.setItem(LAST_DEVICE, p.device.id);
+  return p;
+}
+
+/**
+ * If no device is active, reconnect to the phone's Spotify app (or the last device used).
+ * When Spotify has been paused in the background for a while, iPhone suspends it and it drops
+ * off Spotify's device list; nothing can wake it remotely. Then this throws code NO_DEVICE and
+ * the app offers a one-tap "Open Spotify" that wakes it and retries.
+ */
 async function withDevice(fn) {
   try { return await fn(); } catch (e) {
     if (e.status !== 404 && e.reason !== 'NO_ACTIVE_DEVICE') throw e;
     const { devices = [] } = (await api('/me/player/devices')) || {};
-    const d = devices.find((x) => x.type === 'Smartphone') || devices[0];
-    if (!d) {
-      const err = new Error('Open the Spotify app once so it shows up as a device.');
-      err.code = 'NO_DEVICE';
-      throw err;
+    const ids = [
+      (devices.find((x) => x.type === 'Smartphone') || devices[0])?.id,
+      localStorage.getItem(LAST_DEVICE),
+    ].filter(Boolean);
+    for (const id of [...new Set(ids)]) {
+      try {
+        await api('/me/player', { method: 'PUT', body: { device_ids: [id], play: false } });
+        await new Promise((r) => setTimeout(r, 600));
+        return await fn();
+      } catch { /* that device isn't reachable; try the next */ }
     }
-    await api('/me/player', { method: 'PUT', body: { device_ids: [d.id], play: false } });
-    await new Promise((r) => setTimeout(r, 600));
-    return fn();
+    const err = new Error('Spotify is asleep on your phone.');
+    err.code = 'NO_DEVICE';
+    throw err;
   }
 }
 

@@ -781,10 +781,39 @@ const progress = {
   },
 };
 
-function handleSpotifyError(e, quiet = false) {
+function handleSpotifyError(e, quiet = false, retry = null) {
   if (e instanceof AuthError || e.name === 'AuthError') { show('login'); showLoginError(e.message); return; }
-  if (!quiet || e.code === 'NO_DEVICE') toast(e.message, 3500);
+  if (e.code === 'NO_DEVICE') { wake.show(retry); return; }
+  if (!quiet) toast(e.message, 3500);
 }
+
+/**
+ * Spotify asleep: after a long pause, iPhone suspends the Spotify app and no app can wake it
+ * remotely. The banner's "Open Spotify" brings it to the front (spotify: link); when you come
+ * back to RidePlay, the action you tapped (play, next, a song…) is retried automatically.
+ */
+const wake = {
+  retry: null, waiting: false,
+  show(retry) { this.retry = retry; this.waiting = false; $('#wake').hidden = false; dimmer.poke(); },
+  hide() { $('#wake').hidden = true; this.waiting = false; },
+};
+$('#wake-open').addEventListener('click', () => { wake.waiting = true; location.href = 'spotify:'; });
+$('#wake-close').addEventListener('click', () => { wake.hide(); wake.retry = null; });
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !wake.waiting) return;
+  const fn = wake.retry;
+  wake.hide();
+  wake.retry = null;
+  if (!fn) { music.kick(); return; }
+  toast('Reconnecting to Spotify…', 1600);
+  for (let i = 0; i < 4; i++) {
+    await new Promise((r) => setTimeout(r, i ? 1500 : 900));   // Spotify needs a moment to come online
+    try { await fn(); setTimeout(() => music.kick(), 650); toast('Back on', 1200); return; } catch (e) {
+      if (e.code !== 'NO_DEVICE') { handleSpotifyError(e); return; }
+    }
+  }
+  wake.show(fn);   // still asleep: offer it again
+});
 
 /** Polls Spotify only while a screen that shows music is visible; slower when paused or in saver mode. */
 const music = {
@@ -805,7 +834,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function control(fn) {
-  try { await fn(); setTimeout(() => music.kick(), 650); } catch (err) { handleSpotifyError(err); music.kick(); }
+  try { await fn(); setTimeout(() => music.kick(), 650); } catch (err) { handleSpotifyError(err, false, fn); music.kick(); }
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-action]');
