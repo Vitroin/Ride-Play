@@ -1,4 +1,4 @@
-# Moto Dash
+# RidePlay
 
 A handlebar dashboard for iPhone that you install from Safari (a PWA). It shows GPS speed, gives turn-by-turn navigation on a map inside the app, and controls Spotify.
 
@@ -41,7 +41,7 @@ Search and turn-by-turn routing work out of the box with free public services: *
 ## 4. On your iPhone
 
 1. Open your URL in **Safari** → **Share → Add to Home Screen**.
-2. Open **Moto Dash** from the Home Screen (not from Safari).
+2. Open **RidePlay** from the Home Screen (not from Safari).
 3. Tap **Setup & API keys**, paste both keys, then tap **Save keys**.
 4. Tap **Log in with Spotify** and approve. You'll land back in the app.
 5. Allow location when asked. Choose **While Using the App** and keep **Precise** on.
@@ -79,7 +79,7 @@ gh workflow run deploy.yml
 ## How it saves battery
 
 - **Dark theme by default.** iPhone OLED screens use much less power showing black. Light and Auto themes are one tap away (the sun/moon button).
-- **Auto-dim (on by default):** the screen never locks while Moto Dash is open, but after 30 s / 1 min / 2 min without a touch it fades to dark (darker pixels use less power on OLED). The first touch only wakes it, so it can't press a button by accident, and it brightens by itself before each turn when navigating. Turn it off in **Settings → Display** to get the old behaviour (screen on while riding, allowed to lock after 5 min parked).
+- **Auto-dim (on by default):** the screen never locks while RidePlay is open, but after 30 s / 1 min / 2 min without a touch it fades to dark (darker pixels use less power on OLED). The first touch only wakes it, so it can't press a button by accident, and it brightens by itself before each turn when navigating. Turn it off in **Settings → Display** to get the old behaviour (screen on while riding, allowed to lock after 5 min parked).
 - **Liquid Glass is opt-in.** The see-through look blurs what's behind each panel, which costs GPU time, so it's off by default and battery saver switches it off.
 - **GPS stops completely** when the app is in the background.
 - **Spotify is only asked "what's playing" while it's on screen:** every 5 s when playing, every 12 s when paused, and never when hidden.
@@ -115,10 +115,10 @@ You need to see over 5 km/h twice in a row to count as moving, and fall below ab
 
 ## Known iOS limits
 
-- Location stops when the screen locks or you switch apps. Keep Moto Dash on screen while riding.
+- Location stops when the screen locks or you switch apps. Keep RidePlay on screen while riding.
 - If the screen still dims, set **Settings → Display & Brightness → Auto-Lock → Never** for rides.
-- Shuffle can be switched on/off from Moto Dash, but **Smart Shuffle** can only be turned on in the Spotify app: Spotify's Web API doesn't offer it. Moto Dash shows when it's on.
-- Music actually plays in the Spotify app. Moto Dash is a remote control, and Spotify requires **Premium** for that.
+- Shuffle can be switched on/off from RidePlay, but **Smart Shuffle** can only be turned on in the Spotify app: Spotify's Web API doesn't offer it. RidePlay shows when it's on.
+- Music actually plays in the Spotify app. RidePlay is a remote control, and Spotify requires **Premium** for that.
 - Map © OpenStreetMap contributors, tiles © CARTO (free for light personal use). Routing by Valhalla on the FOSSGIS server, search by Photon (komoot).
 
 ## Files

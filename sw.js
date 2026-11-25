@@ -1,12 +1,12 @@
 // App-shell cache so the dashboard opens instantly and works with bad signal.
 // API calls (Spotify, routing, search) and map tiles are never cached here.
-const CACHE = 'motodash-v1';
+const CACHE = 'rideplay-v1';
 const SHELL = [
   './', './index.html', './styles.css', './config.js', './manifest.webmanifest',
   './js/app.js', './js/spotify.js', './js/gps.js', './js/nav.js', './js/routing.js', './js/places.js',
   './js/keys.js', './js/util.js', './js/icons.js', './js/wakelock.js', './js/demo.js', './js/artcolor.js',
   './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
+  './icons/icon-192.png', './icons/logo.svg', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 
 // Install: fetch the shell straight from the server ('reload'), never from the HTTP cache,

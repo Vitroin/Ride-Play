@@ -80,7 +80,7 @@ export function demoSpotify() {
   let cover = 0;
   const state = {
     is_playing: true, progress_ms: 42000, shuffle_state: false, repeat_state: 'off', context: null,
-    item: { uri: 'demo:x', name: 'Demo track', duration_ms: 214000, artists: [{ name: 'Moto Dash' }], album: { name: 'Demo album', images: demoCover(0) } },
+    item: { uri: 'demo:x', name: 'Demo track', duration_ms: 214000, artists: [{ name: 'RidePlay' }], album: { name: 'Demo album', images: demoCover(0) } },
   };
   let t0 = Date.now();
   const snapshot = () => {
@@ -99,7 +99,7 @@ export function demoSpotify() {
       const total = 64;
       const items = Array.from({ length: Math.max(0, Math.min(50, total - offset)) }, (_, i) => ({
         track: { uri: `demo:${offset + i}`, name: `Demo song ${offset + i + 1}`, duration_ms: 150000 + ((offset + i) * 7919) % 120000,
-          artists: [{ name: ['Moto Dash', 'Night Riders', 'Open Road'][(offset + i) % 3] }], album: { images: [] } },
+          artists: [{ name: ['RidePlay', 'Night Riders', 'Open Road'][(offset + i) % 3] }], album: { images: [] } },
       }));
       return { items, total, next: offset + 50 < total ? 'more' : null };
     },

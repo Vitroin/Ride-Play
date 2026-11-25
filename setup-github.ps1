@@ -16,7 +16,7 @@ Write-Host "-> GitHub account: $User"
 if (-not (Test-Path .git)) { git init -q -b main }
 git add -A
 git diff --cached --quiet
-if ($LASTEXITCODE -ne 0) { git commit -qm "Moto Dash" }
+if ($LASTEXITCODE -ne 0) { git commit -qm "RidePlay" }
 git branch -M main
 
 gh repo view "$User/$Repo" 2>$null | Out-Null

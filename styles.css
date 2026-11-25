@@ -1,5 +1,5 @@
 /* =========================================================
-   Moto Dash — car-dashboard style (left app dock, widget dashboard,
+   RidePlay — car-dashboard style (left app dock, widget dashboard,
    full-bleed maps, big-tile music). Dark default: true black is the most
    power-efficient colour on iPhone OLED screens.
    Battery: no infinite animations, one-shot transform/opacity motion only,
@@ -125,6 +125,32 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
 }
 .dock-home[aria-current="page"] { background: var(--text); color: var(--bg); }
 
+/* Side bar can be hidden for more room; a small handle at the edge brings it back. */
+.dock { transition: transform 0.3s var(--ease-out); }
+.stage { transition: left 0.3s var(--ease-out), bottom 0.3s var(--ease-out); }
+.dock-hide { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--card-2); color: var(--muted); font-size: 15px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+body.dock-edit .dock-hide { display: none; }
+body.dock-hidden .dock { transform: translateX(-102%); pointer-events: none; }
+body.dock-hidden .stage { left: 0; }
+body.dock-hidden .screen { padding-left: max(30px, env(safe-area-inset-left)); }
+body.dock-hidden .maps { padding-left: 0; --ml: max(30px, env(safe-area-inset-left)); }
+.dock-show {
+  position: fixed; z-index: 20; top: 50%; left: max(4px, calc(env(safe-area-inset-left) - 26px));
+  width: 22px; height: 72px; border-radius: 999px; border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--card) 88%, transparent); color: var(--text); font-size: 14px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  transform: translate(-160%, -50%); opacity: 0; pointer-events: none;
+  transition: transform 0.35s var(--ease-spring), opacity 0.2s;
+}
+body.dock-hidden .dock-show { transform: translate(0, -50%); opacity: 1; pointer-events: auto; }
+.dock-show:active { transform: translate(0, -50%) scale(0.92); }
+.no-dock .dock-show { display: none; }
+body.preload *, body.preload *::before { transition: none !important; }
+
+/* A music button picture you supply (icons/music-app.png), e.g. Spotify's official icon. */
+.app-icon.has-img { background: #000; overflow: hidden; }
+.app-icon.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+
 /* Rearranging: long-press an app icon → icons jiggle (only while editing) and follow your finger. */
 .dock { touch-action: none; }
 .dock-done { display: none; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14px; align-items: center; justify-content: center; }
@@ -165,7 +191,7 @@ body.dock-edit .dock-apps .app-icon:nth-child(2n) { animation-delay: -0.15s; }
 .login { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: 16px; overflow-y: auto; }
 .login-hero { display: flex; flex-direction: column; justify-content: space-between; gap: 16px; padding: 8px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; }
-.brand-mark { width: 44px; height: 44px; border-radius: 12px; background: var(--orange); color: #000; font-size: 26px; }
+.brand-logo { width: 44px; height: 44px; border-radius: 11px; display: block; }
 .login h1 { margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(34px, 9vh, 52px); line-height: 1; letter-spacing: -0.02em; }
 .login h1 .hl { color: var(--orange); }
 .login-hero p { margin: 10px 0 0; font-size: 15px; line-height: 1.45; max-width: 360px; }
@@ -385,10 +411,6 @@ body[data-playing="true"] .i-play { display: none !important; }
 .now-art { position: relative; width: min(100cqh, 300px, 46cqw); height: min(100cqh, 300px, 46cqw); flex: none; border-radius: 14px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 .now-art .art-ph { font-size: 64px; }
 .now-info { flex: 1; min-width: 0; max-height: 100%; display: flex; flex-direction: column; }
-/* "Spotify · Playing" above the title: portrait only (landscape shows Spotify in the tab bar). */
-.now-source { display: none; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
-.now-source [data-icon] { font-size: 13px; }
-body.art-tint .music-card.on-now .now-source { color: rgba(255, 255, 255, 0.9); }
 .now-title { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-artist { font-size: 18px; font-weight: 600; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-album { font-size: 14px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -595,7 +617,7 @@ html[data-theme="light"] body.glass {
       #EEF0F6;
   }
 }
-body.glass .card, body.glass .dock, body.glass .btn-map, body.glass .speed-bubble {
+body.glass .card, body.glass .dock, body.glass .btn-map, body.glass .speed-bubble, body.glass .dock-show {
   background-color: var(--glass);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
@@ -654,14 +676,29 @@ body.saver [data-music="img"] { display: none !important; }
   .maps.browsing.map-wide .map { top: var(--mt); }
   .dest-panel { width: auto; right: var(--mr); bottom: calc(55% + 10px); }
   .toast { bottom: calc(70px + env(safe-area-inset-bottom) + 14px); }   /* above the bottom dock */
+  body.dock-hidden .toast { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 30px); }
+  .dock-hide [data-icon] { transform: rotate(-90deg); }
+  body.dock-hidden .dock { transform: translateY(102%); }
+  body.dock-hidden .stage { left: 0; bottom: 0; }
+  body.dock-hidden .screen { padding-left: 12px; padding-bottom: max(30px, env(safe-area-inset-bottom)); }
+  body.dock-hidden .maps { --ml: 12px; --mb: max(30px, env(safe-area-inset-bottom)); padding: 0; }
+  .dock-show {
+    top: auto; left: 50%; bottom: max(4px, calc(env(safe-area-inset-bottom) - 22px));
+    width: 72px; height: 22px; transform: translate(-50%, 160%);
+  }
+  .dock-show [data-icon] { transform: rotate(-90deg); }
+  body.dock-hidden .dock-show { transform: translate(-50%, 0); }
+  .dock-show:active { transform: translate(-50%, 0) scale(0.92); }
   .now { flex-direction: column; padding: 0; gap: 14px; }
   /* the info column must be as wide as the card, not as wide as a long song title */
   .now-info { align-self: stretch; width: 100%; flex: none; }
   .now-title { font-size: 24px; }
-  .music-tabs { gap: 2px; }
-  .music-tabs [role="tab"] { padding: 0 11px; font-size: 14px; }
-  .music-tabs [role="tab"] [data-icon], .source-tag { display: none; }
-  .now-source { display: inline-flex; }
+  /* Spotify label on its own row, the three tabs share the row below it */
+  .music-tabs { flex-wrap: wrap; row-gap: 8px; gap: 4px; }
+  .music-tabs .source-tag { order: -1; flex-basis: 100%; padding: 2px 4px 0; }
+  .music-tabs .spacer { display: none; }
+  .music-tabs [role="tab"] { flex: 1 1 0; justify-content: center; padding: 0 6px; font-size: 14px; height: 40px; }
+  .music-tabs [role="tab"] [data-icon] { display: none; }
   .maps.panel-hidden #maps-browse { transform: translateY(calc(-100% - 24px)); }
   .maps:not(.panel-hidden) .where-pill { transform: translateY(-12px) scale(0.85); }
   .now-art { width: min(45cqh, 100cqw); height: min(45cqh, 100cqw); }

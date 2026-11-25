@@ -15,7 +15,7 @@ echo "→ GitHub account: $USER_LOGIN"
 
 if [ ! -d .git ]; then git init -q -b main; fi
 git add -A
-git diff --cached --quiet || git commit -qm "Moto Dash"
+git diff --cached --quiet || git commit -qm "RidePlay"
 git branch -M main
 
 if gh repo view "$USER_LOGIN/$REPO" >/dev/null 2>&1; then

@@ -1,6 +1,6 @@
 {
-  "name": "Moto Dash",
-  "short_name": "Moto Dash",
+  "name": "RidePlay",
+  "short_name": "RidePlay",
   "description": "Handlebar dashboard: GPS speed, turn-by-turn navigation and Spotify controls.",
   "start_url": "./",
   "scope": "./",
@@ -9,7 +9,16 @@
   "background_color": "#07070D",
   "theme_color": "#07070D",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

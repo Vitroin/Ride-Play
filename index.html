@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Moto Dash">
+<meta name="apple-mobile-web-app-title" content="RidePlay">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -17,9 +17,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
-<title>Moto Dash</title>
+<title>RidePlay</title>
 </head>
-<body data-playing="false" class="no-dock">
+<body data-playing="false" class="no-dock preload">
 <div id="app" class="app">
 
   <!-- ============ DOCK (left app bar) ============ -->
@@ -29,12 +29,13 @@
       <span id="clock" class="dock-clock">--:--</span>
       <span id="gps-dot" class="gps-dot wait" role="img" aria-label="GPS"><span data-icon="signal"></span></span>
     </div>
+    <button id="dock-hide" class="dock-hide" type="button" aria-label="Hide the side bar"><span data-icon="back"></span></button>
     <div class="dock-apps">
       <button class="app-icon ai-maps" type="button" data-go="maps" aria-label="Maps"><span data-icon="map"></span></button>
       <button class="app-icon ai-music" type="button" data-go="music" aria-label="Music"><span data-icon="music"></span></button>
       <button class="app-icon ai-settings" type="button" data-go="settings" aria-label="Settings"><span data-icon="sliders"></span></button>
     </div>
-    <button class="dock-home" type="button" data-go="dash" aria-label="Dashboard"><span data-icon="grid"></span></button>
+    <button class="dock-home" type="button" data-go="dash" aria-label="Dashboard"><span data-icon="home"></span></button>
   </nav>
 
   <main class="stage">
@@ -42,7 +43,7 @@
     <!-- ============ LOGIN / SETUP ============ -->
     <section id="screen-login" class="screen login" hidden>
       <div class="login-hero">
-        <div class="brand"><span class="brand-mark" data-icon="moto"></span><span>Moto Dash</span></div>
+        <div class="brand"><img class="brand-logo" src="icons/logo.svg" alt=""><span>RidePlay</span></div>
         <div>
           <h1>Ride. Glance.<br><span class="hl">Go.</span></h1>
           <p class="muted">Speed, turn-by-turn navigation and your music on the handlebars. Connect Spotify once to get started.</p>
@@ -238,7 +239,6 @@
       <div id="tab-now" class="tab-panel now" role="tabpanel">
         <div class="now-art"><img data-music="img" alt="" hidden><span class="art-ph" data-icon="music"></span></div>
         <div class="now-info">
-          <div class="now-source"><span data-icon="music"></span>Spotify · <span data-music="status">Connecting</span></div>
           <div class="now-title" data-music="title">—</div>
           <div class="now-artist" data-music="artist">&nbsp;</div>
           <div class="now-album" data-music="album">&nbsp;</div>
@@ -328,6 +328,7 @@
   </main>
 </div>
 
+<button id="dock-show" class="dock-show" type="button" aria-label="Show the side bar"><span data-icon="chevron"></span></button>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="dimmer" class="dimmer" aria-hidden="true"></div>
 

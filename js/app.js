@@ -176,6 +176,25 @@ dockApps.addEventListener('click', (e) => {
 $('#dock-done').addEventListener('click', () => dockEdit.stop());
 document.addEventListener('pointerdown', (e) => { if (dockEdit.on && !e.target.closest('.dock')) dockEdit.stop(); }, true);
 
+// ================================================================ side bar: hide / show
+// The ‹ button in the side bar slides it away for more room; the small handle at the edge
+// brings it back. The map keeps its streets in place while it widens.
+function applyDock(animate = false) {
+  document.body.classList.toggle('dock-hidden', !!settings.dockHidden);
+  if (nav) setTimeout(() => nav.map.invalidateSize({ pan: false }), animate ? 330 : 0);
+}
+$('#dock-hide').addEventListener('click', () => { settings.dockHidden = true; saveSettings(); applyDock(true); });
+$('#dock-show').addEventListener('click', () => { settings.dockHidden = false; saveSettings(); applyDock(true); });
+
+/** If you add icons/music-app.png (e.g. Spotify's official icon), the music button shows it. */
+function loadMusicIcon() {
+  const btn = $('.dock-apps [data-go="music"]');
+  const img = new Image();
+  img.alt = '';
+  img.onload = () => { btn.classList.add('has-img'); btn.replaceChildren(img); };
+  img.src = 'icons/music-app.png';
+}
+
 // ================================================================ theme / saver
 const mqLight = matchMedia('(prefers-color-scheme: light)');
 const resolvedTheme = () => (settings.theme === 'auto' ? (mqLight.matches ? 'light' : 'dark') : settings.theme);
@@ -566,7 +585,7 @@ $('#btn-place-back').addEventListener('click', () => {
 /**
  * Hand a destination to Apple Maps. On iPhone the maps:// link opens the Maps app directly,
  * so the home-screen app is never navigated away (an https link went through Safari, and
- * coming back could leave Moto Dash stuck until it was restarted).
+ * coming back could leave the app stuck until it was restarted).
  */
 function openInAppleMaps(p) {
   const q = `daddr=${p.lat},${p.lng}&dirflg=d`;
@@ -1039,6 +1058,10 @@ function enterApp() { gps.start(); show('dash'); }
 async function boot() {
   hydrateIcons();
   applyDockOrder();
+  applyDock();
+  loadMusicIcon();
+  // Settle the first layout without animating (e.g. a hidden side bar sliding away on launch).
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('preload')));
   applyTheme(); applySaver(); applyVoice(); applyUnits();
   scheduleClock();
   if ('serviceWorker' in navigator && !DEMO) {

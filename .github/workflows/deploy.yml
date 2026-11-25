@@ -42,7 +42,7 @@ jobs:
             console.log('Spotify Client ID:', k.SPOTIFY_CLIENT_ID ? 'set' : 'NOT SET', '| ORS key:', k.ORS_API_KEY ? 'set' : 'not set', '| CARTO key:', k.CARTO_KEY ? 'set' : 'not set');
           "
           # New cache name per deploy, so phones pick up the update on next open.
-          sed -i "s/motodash-v1/motodash-${GITHUB_SHA::7}/" _site/sw.js
+          sed -i "s/rideplay-v1/rideplay-${GITHUB_SHA::7}/" _site/sw.js
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v6
