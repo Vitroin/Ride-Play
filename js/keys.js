@@ -6,8 +6,9 @@ const KEY = 'md.keys';
 export function getKeys() {
   const s = readJSON(KEY, {});
   return {
-    spotifyClientId: (s.spotifyClientId || DEFAULTS.SPOTIFY_CLIENT_ID || '').trim(),
-    orsKey: (s.orsKey || DEFAULTS.ORS_API_KEY || '').trim(),
+    // Keys built in at deploy time (GitHub secrets) win, so rotating a key there just works.
+    spotifyClientId: (DEFAULTS.SPOTIFY_CLIENT_ID || s.spotifyClientId || '').trim(),
+    orsKey: (DEFAULTS.ORS_API_KEY || s.orsKey || '').trim(),
   };
 }
 

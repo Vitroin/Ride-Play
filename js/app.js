@@ -4,16 +4,20 @@ import { NavSession } from './nav.js';
 import * as places from './places.js';
 import { geocode } from './routing.js';
 import { getKeys, setKeys } from './keys.js';
+import { DEFAULTS } from '../config.js';
 import { setAwake } from './wakelock.js';
 import { hydrateIcons, setIcon, placeIcon, PLACE_COLORS, turnIcon } from './icons.js';
 import { DEMO, DemoGps, demoSpotify, demoRoute, DEMO_PLACES } from './demo.js';
-import { $, $$, h, haversine, fmtDuration, fmtMinutes, fmtClock, toast, readJSON, writeJSON } from './util.js';
+import { $, $$, h, haversine, fmtDuration, fmtClock, toast, readJSON, writeJSON } from './util.js';
 
 const spotify = DEMO ? demoSpotify() : realSpotify;
 const AuthError = realSpotify.AuthError;
 
-// ---------------------------------------------------------------- settings
-const settings = { imperial: false, mapsMode: 'inapp', voice: true, theme: 'auto', saver: false, ...readJSON('md.settings', {}) };
+// ================================================================ settings
+const settings = {
+  imperial: false, mapsMode: 'inapp', voice: true, theme: 'auto', saver: false, diag: false,
+  ...readJSON('md.settings', {}),
+};
 const saveSettings = () => writeJSON('md.settings', settings);
 
 const gps = DEMO ? new DemoGps() : new GpsTracker();
@@ -21,76 +25,65 @@ let nav = null;
 let navigating = false;
 let current = null;
 
-// ---------------------------------------------------------------- screens
-const SCREENS = ['login', 'dash', 'places', 'music', 'nav'];
-const DEPTH = { login: 0, dash: 1, places: 2, music: 2, nav: 3 };
 /** Re-trigger a one-shot CSS animation class. */
-export function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ================================================================ screens
+const SCREENS = ['login', 'dash', 'maps', 'music', 'settings'];
+const DEPTH = { login: 0, dash: 1, maps: 2, music: 2, settings: 2 };
+
 function show(name) {
   const prev = current;
   for (const s of SCREENS) $(`#screen-${s}`).hidden = s !== name;
+  document.body.classList.toggle('no-dock', name === 'login');
+  $$('.dock [data-go]').forEach((b) => { if (b.dataset.go === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+
   const el = $(`#screen-${name}`);
   el.classList.remove('enter-fwd', 'enter-back', 'enter-fade');
-  if (prev && prev !== name) replay(el, DEPTH[name] >= DEPTH[prev] ? 'enter-fwd' : 'enter-back');
-  else if (!prev) replay(el, 'enter-fade');
+  if (!prev) replay(el, 'enter-fade');
+  else if (prev !== name) replay(el, DEPTH[name] > DEPTH[prev] ? 'enter-fwd' : DEPTH[name] < DEPTH[prev] ? 'enter-back' : 'enter-fade');
   current = name;
+
   if (name === 'login') renderLogin();
-  if (name === 'places') renderPlaces();
-  if (name === 'dash') renderTiles(prev !== 'dash');
-  if (name === 'nav') nav?.resize();
-  if (name === 'music') liked.open();
+  if (name === 'dash') renderDestWidget(prev !== 'dash');
+  if (name === 'maps') openMaps();
+  if (name === 'music') musicUI.open();
+  if (name === 'settings') renderSettings();
   updateAwake();
   music.kick();
+  progress.sync();
 }
 document.addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]');
   if (go) show(go.dataset.go);
 });
 
-// ---------------------------------------------------------------- theme
+// ================================================================ theme / saver
 const mqLight = matchMedia('(prefers-color-scheme: light)');
 const resolvedTheme = () => (settings.theme === 'auto' ? (mqLight.matches ? 'light' : 'dark') : settings.theme);
-function applyTheme() {
+function applyTheme(animate = false) {
+  if (animate) document.documentElement.classList.add('theming');
   document.documentElement.dataset.theme = settings.theme;
-  const t = resolvedTheme();
-  $('meta[name="theme-color"]').setAttribute('content', t === 'light' ? '#EEF0F6' : '#07070D');
-  setIcon($('#theme-icon'), settings.theme === 'auto' ? 'auto' : t === 'light' ? 'sun' : 'moon');
-  $('#btn-theme').setAttribute('aria-label', `Theme: ${settings.theme}`);
-  nav?.setTheme(t);
+  $('meta[name="theme-color"]').setAttribute('content', resolvedTheme() === 'light' ? '#F2F2F7' : '#000000');
+  nav?.setTheme(resolvedTheme());
+  if (animate) setTimeout(() => document.documentElement.classList.remove('theming'), 400);
 }
-mqLight.addEventListener('change', applyTheme);
-$('#btn-theme').addEventListener('click', () => {
-  settings.theme = { auto: 'dark', dark: 'light', light: 'auto' }[settings.theme];
-  document.documentElement.classList.add('theming');
-  saveSettings(); applyTheme();
-  setTimeout(() => document.documentElement.classList.remove('theming'), 400);
-  toast(`Theme: ${settings.theme === 'auto' ? 'Auto (follows iPhone)' : settings.theme === 'dark' ? 'Dark' : 'Light'}`, 1600);
-});
-const accent = () => getComputedStyle(document.documentElement).getPropertyValue('--orange').trim() || '#FF5A1F';
+mqLight.addEventListener('change', () => applyTheme(true));
 
-// ---------------------------------------------------------------- battery saver
 function applySaver() {
   document.body.classList.toggle('saver', settings.saver);
-  $('#btn-saver').setAttribute('aria-pressed', String(settings.saver));
   nav?.setSaver(settings.saver);
 }
-$('#btn-saver').addEventListener('click', () => {
-  settings.saver = !settings.saver;
-  saveSettings(); applySaver(); music.kick();
-  toast(settings.saver ? 'Battery saver on: slower music updates, lighter map' : 'Battery saver off', 2200);
-});
 
-/**
- * Screen-on policy: keep it on while riding or navigating, let iOS dim it
- * in menus or after 5 min parked (unless navigating).
- */
+/** Screen-on policy: on while riding/navigating; off in Settings or after 5 min parked. */
 function updateAwake() {
   const parked = Date.now() - gps.lastMoveAt > 5 * 60 * 1000;
-  setAwake(current === 'nav' || ((current === 'dash' || current === 'music') && !parked));
+  setAwake(navigating || ((current === 'dash' || current === 'maps' || current === 'music') && !parked));
 }
 setInterval(updateAwake, 30000);
 
-// ---------------------------------------------------------------- units
+// ================================================================ units
 const toUnit = (ms) => ms * (settings.imperial ? 2.236936 : 3.6);
 const speedText = (ms) => String(Math.round(toUnit(ms)));
 function distParts(m) {
@@ -102,58 +95,45 @@ function shortDist(m) {
     const ft = m * 3.28084;
     return ft < 1000 ? `${Math.max(50, Math.round(ft / 50) * 50)} ft` : `${(m / 1609.344).toFixed(1)} mi`;
   }
-  return m < 1000 ? `${Math.max(10, Math.round(m / (m < 200 ? 10 : 50)) * (m < 200 ? 10 : 50))} m` : `${(m / 1000).toFixed(1)} km`;
+  if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
+  const step = m < 200 ? 10 : 50;
+  return `${Math.max(10, Math.round(m / step) * step)} m`;
 }
 function applyUnits() {
   $$('.speed-unit').forEach((el) => { el.textContent = settings.imperial ? 'mph' : 'km/h'; });
   renderGps();
 }
-// Long-press the speed dial: toggle GPS diagnostics. Short tap: switch units.
-let pressTimer = null, longPressed = false;
-$('#speed-card').addEventListener('pointerdown', () => {
-  longPressed = false;
-  pressTimer = setTimeout(() => {
-    longPressed = true;
-    settings.diag = !settings.diag; saveSettings(); renderGps();
-    toast(settings.diag ? 'GPS diagnostics on' : 'GPS diagnostics off', 1400);
-  }, 700);
-});
-['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => $('#speed-card').addEventListener(ev, () => clearTimeout(pressTimer)));
-$('#speed-card').addEventListener('contextmenu', (e) => e.preventDefault());
-$('#speed-card').addEventListener('click', () => {
-  if (longPressed) { longPressed = false; return; }
-  settings.imperial = !settings.imperial;
-  saveSettings(); applyUnits(); renderTiles();
-});
 
-// ---------------------------------------------------------------- GPS / dashboard
-function speedBand(ms) {
+// ================================================================ GPS / dashboard
+const speedBand = (ms) => {
   const kmh = ms * 3.6;
   return kmh < 50 ? 'var(--lime)' : kmh < 90 ? 'var(--cyan)' : kmh < 130 ? 'var(--orange)' : 'var(--magenta)';
-}
-let lastTileRender = 0;
+};
+let lastDestRender = 0;
 function renderGps() {
   const s = speedText(gps.speed);
   $('#speed').textContent = s;
   $('#nav-speed').textContent = s;
+  $('#speed').classList.toggle('three', s.length >= 3);
+  $('#nav-speed').classList.toggle('three', s.length >= 3);
   document.documentElement.style.setProperty('--band', speedBand(gps.speed));
-  const frac = Math.min(1, (gps.speed * 3.6) / 200); // gauge full scale: 200 km/h
+  const frac = Math.min(1, (gps.speed * 3.6) / 200); // full scale 200 km/h
   $('#gauge-fill').style.strokeDasharray = `${(frac * 395.84).toFixed(1)} 527.79`;
 
   const d = distParts(gps.distance);
   $('#stat-dist').textContent = d.v;
-  $('#stat-dist-unit').textContent = d.u;
+  $('#stat-dist-unit').textContent = d.u === 'km' ? 'kilometres' : 'miles';
   $('#stat-time').textContent = fmtDuration(gps.movingTime);
   $('#stat-avg').textContent = gps.movingTime > 10 ? speedText(gps.distance / gps.movingTime) : '0';
   $('#stat-max').textContent = speedText(gps.maxSpeed);
 
-  const pill = $('#gps-pill');
   const [cls, text] = {
     ok: ['pill-ok', 'GPS'], weak: ['pill-weak', 'Weak GPS'], wait: ['pill-wait', 'Finding GPS'],
     off: ['pill-off', 'Location off'], unsupported: ['pill-off', 'No GPS'],
   }[gps.status] || ['pill-wait', 'GPS'];
-  pill.className = `pill ${cls}`;
-  $('#gps-text').textContent = gps.status === 'ok' && gps.accuracy != null ? `GPS ±${Math.round(gps.accuracy)} m` : text;
+  $('#gps-pill').className = `pill ${cls}`;
+  $('#gps-text').textContent = gps.status === 'ok' && gps.accuracy != null ? `±${Math.round(gps.accuracy)} m` : text;
+  $('#gps-dot').className = `gps-dot ${gps.status === 'unsupported' ? 'off' : gps.status}`;
 
   const diag = $('#gps-diag');
   diag.hidden = !settings.diag;
@@ -162,12 +142,33 @@ function renderGps() {
     diag.textContent = `${src} · raw ${speedText(gps.rawSpeed || 0)} · ${gps.moving === false ? 'stopped' : 'moving'}`;
   }
 
-  if (current === 'dash' && Date.now() - lastTileRender > 15000) { lastTileRender = Date.now(); renderTiles(); }
+  if (current === 'dash' && Date.now() - lastDestRender > 15000) { lastDestRender = Date.now(); renderDestWidget(); }
 }
 gps.addEventListener('update', () => {
   renderGps();
-  if (navigating) nav?.update(gps.position, gps.accuracy);
-  if (gps.status === 'off' && !renderGps.warned) { renderGps.warned = true; toast('Allow location in Settings › Privacy › Location Services › Safari Websites'); }
+  if (current === 'maps' || navigating) nav?.update(gps.position, gps.accuracy);
+  if (gps.status === 'off' && !renderGps.warned) {
+    renderGps.warned = true;
+    toast('Allow location: Settings › Privacy › Location Services › Safari Websites', 5000);
+  }
+});
+
+// Gauge: tap = units, hold = GPS diagnostics.
+let pressTimer = null, longPressed = false;
+const gauge = $('#speed-gauge');
+gauge.addEventListener('pointerdown', () => {
+  longPressed = false;
+  pressTimer = setTimeout(() => {
+    longPressed = true;
+    settings.diag = !settings.diag; saveSettings(); renderGps();
+    toast(settings.diag ? 'GPS diagnostics on' : 'GPS diagnostics off', 1400);
+  }, 700);
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => gauge.addEventListener(ev, () => clearTimeout(pressTimer)));
+gauge.addEventListener('contextmenu', (e) => e.preventDefault());
+gauge.addEventListener('click', () => {
+  if (longPressed) { longPressed = false; return; }
+  settings.imperial = !settings.imperial; saveSettings(); applyUnits();
 });
 
 // End ride: tap twice to reset trip stats.
@@ -184,62 +185,48 @@ $('#btn-end').addEventListener('click', () => {
   gps.resetTrip(); toast('Trip reset', 1500);
 });
 
-function tickClock() { $('#clock').textContent = fmtClock(); }
-// Tick on the minute boundary instead of every second.
-function scheduleClock() { tickClock(); setTimeout(scheduleClock, 60000 - (Date.now() % 60000) + 50); }
+function scheduleClock() { $('#clock').textContent = fmtClock(); setTimeout(scheduleClock, 60000 - (Date.now() % 60000) + 50); }
 
-// ---------------------------------------------------------------- places
+// ================================================================ places (rows used by dashboard + maps)
 function placeChip(p, i) {
   const chip = h('span', { class: `chip ${PLACE_COLORS[i % PLACE_COLORS.length]}` });
   setIcon(chip, placeIcon(p.name));
   return chip;
 }
-function awayText(p) {
-  return gps.position ? `${shortDist(haversine(gps.position, p))} away` : 'Tap to navigate';
-}
+const awayText = (p) => (gps.position ? `${shortDist(haversine(gps.position, p))} away` : 'Tap to navigate');
 
-function renderTiles(animate = false) {
-  const list = places.getPlaces().slice(0, 2);
-  const box = $('#place-tiles');
-  const tiles = list.map((p, i) => h('button', { class: 'tile', type: 'button', onclick: () => startNavigation(p) },
-    placeChip(p, i), h('span', {}, h('div', { class: 'tile-name' }, p.name), h('div', { class: 'tile-sub' }, awayText(p)))));
-  if (list.length < 2) {
-    const chip = h('span', { class: 'chip c-lime' }); setIcon(chip, 'plus');
-    tiles.push(h('button', { class: 'tile ghost', type: 'button', onclick: () => { show('places'); $('#search-input').focus(); } },
-      chip, h('span', {}, h('div', { class: 'tile-name' }, 'Add place'), h('div', { class: 'tile-sub' }, 'Search & save'))));
-  }
-  const chip = h('span', { class: 'chip c-cyan' }); setIcon(chip, 'search');
-  tiles.push(h('button', { class: 'tile ghost', type: 'button', onclick: () => show('places') },
-    chip, h('span', {}, h('div', { class: 'tile-name' }, 'More places'), h('div', { class: 'tile-sub' }, 'Saved · search'))));
-  if (animate) tiles.forEach((t, i) => { t.classList.add('anim-in'); t.style.setProperty('--i', i); });
-  box.replaceChildren(...tiles);
-}
-
-function placeRow(p, i, side) {
-  return h('div', { class: 'place-row' },
-    h('button', { class: 'place-main', type: 'button', onclick: () => startNavigation(p) },
+function destRow(p, i, side, meta) {
+  return h('div', { class: 'dest-row' },
+    h('button', { class: 'dest-main', type: 'button', onclick: () => startNavigation(p) },
       placeChip(p, i),
-      h('span', { class: 'place-text' }, h('span', { class: 'place-name' }, p.name), h('span', { class: 'place-meta' }, [awayText(p), p.label].filter(Boolean).join(' · ')))),
+      h('span', { class: 'dest-text' }, h('span', { class: 'dest-name' }, p.name), h('span', { class: 'dest-meta' }, meta ?? awayText(p)))),
     side);
+}
+const cascade = (els, max = 10) => els.forEach((el, i) => { el.classList.add('anim-in'); el.style.setProperty('--i', Math.min(i, max)); });
+
+function renderDestWidget(animate = false) {
+  const list = places.getPlaces().slice(0, 2);
+  const rows = list.map((p, i) => destRow(p, i, null));
+  if (list.length < 2) {
+    const chip = h('span', { class: 'chip c-green' }); setIcon(chip, 'plus');
+    rows.push(h('div', { class: 'dest-row' }, h('button', { class: 'dest-main', type: 'button', onclick: () => { show('maps'); setTimeout(() => $('#search-input').focus(), 300); } },
+      chip, h('span', { class: 'dest-text' }, h('span', { class: 'dest-name' }, 'Add a favourite'), h('span', { class: 'dest-meta' }, 'Search for Home, University…')))));
+  }
+  if (animate) cascade(rows);
+  $('#dest-list').replaceChildren(...rows);
 }
 
 function renderPlaces() {
-  $$('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === settings.mapsMode)));
-  const list = places.getPlaces();
-  const rows = list.map((p, i) => {
-    const del = h('button', { class: 'place-side', type: 'button', 'aria-label': `Remove ${p.name}`, onclick: () => {
-      if (confirm(`Remove “${p.name}” from saved places?`)) { places.removePlace(p.id); renderPlaces(); }
+  const rows = places.getPlaces().map((p, i) => {
+    const del = h('button', { class: 'dest-side', type: 'button', 'aria-label': `Remove ${p.name}`, onclick: () => {
+      if (confirm(`Remove “${p.name}” from favourites?`)) { places.removePlace(p.id); renderPlaces(); }
     } });
     setIcon(del, 'trash');
-    return placeRow(p, i, del);
+    return destRow(p, i, del);
   });
-  rows.forEach((r, i) => { r.classList.add('anim-in'); r.style.setProperty('--i', Math.min(i, 10)); });
-  $('#places-list').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'No saved places yet. Search above and tap + to save one. Name it “Home” or “University” to get the matching icon.')]));
+  cascade(rows);
+  $('#places-list').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'No favourites yet. Search above and tap + to save one. Call it “Home” or “University” to get the matching icon.')]));
 }
-
-$$('.seg button').forEach((b) => b.addEventListener('click', () => {
-  settings.mapsMode = b.dataset.mode; saveSettings(); renderPlaces();
-}));
 
 $('#search-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -249,42 +236,47 @@ $('#search-form').addEventListener('submit', async (e) => {
   $('#results-block').hidden = false;
   $('#results-list').replaceChildren(h('div', { class: 'empty' }, 'Searching…'));
   try {
-    const res = DEMO ? DEMO_PLACES.map((p) => ({ ...p, name: `${q} — ${p.name}` })) : await geocode(q, gps.position);
+    const res = DEMO ? DEMO_PLACES.map((p) => ({ ...p, name: `${q} · ${p.name}` })) : await geocode(q, gps.position);
     const rows = res.map((r, i) => {
-      const save = h('button', { class: 'place-side save', type: 'button', 'aria-label': `Save ${r.name}`, onclick: () => {
+      const save = h('button', { class: 'dest-side save', type: 'button', 'aria-label': `Save ${r.name}`, onclick: () => {
         const name = prompt('Name this place (e.g. Home, University)', r.name);
         if (name === null) return;
         places.savePlace({ ...r, name: name.trim() || r.name });
-        toast('Saved', 1200); renderPlaces();
+        toast('Saved to favourites', 1300); renderPlaces();
       } });
       setIcon(save, 'plus');
-      const row = placeRow(r, i, save);
-      row.classList.add('anim-in'); row.style.setProperty('--i', Math.min(i, 10));
-      return row;
+      return destRow(r, i, save, [awayText(r), r.label].filter(Boolean).join(' · '));
     });
+    cascade(rows);
     $('#results-list').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'Nothing found. Try adding the city name.')]));
   } catch (err) {
     $('#results-list').replaceChildren(h('div', { class: 'empty' }, err.message));
   }
 });
-$('#btn-clear').addEventListener('click', () => {
-  $('#results-block').hidden = true; $('#search-input').value = '';
-});
+$('#btn-clear').addEventListener('click', () => { $('#results-block').hidden = true; $('#search-input').value = ''; });
 
-// ---------------------------------------------------------------- navigation
+// ================================================================ maps & navigation
 function speak(text) {
   if (!settings.voice || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US'; u.rate = 1.05; u.volume = 1;
+  u.lang = 'en-US'; u.rate = 1.05;
   speechSynthesis.speak(u);
 }
+let speechReady = false;
+function speechUnlock() {
+  if (speechReady || !('speechSynthesis' in window)) return;
+  speechReady = true;
+  speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+}
+document.addEventListener('pointerdown', speechUnlock, { once: true, passive: true });
+
 function applyVoice() {
   $('#btn-voice').setAttribute('aria-pressed', String(settings.voice));
   setIcon($('#voice-icon'), settings.voice ? 'volume' : 'volumeOff');
 }
 $('#btn-voice').addEventListener('click', () => {
-  settings.voice = !settings.voice; saveSettings(); applyVoice();
+  settings.voice = !settings.voice; saveSettings(); applyVoice(); renderSettings();
   if (settings.voice) speak('Voice on');
 });
 $('#btn-recenter').addEventListener('click', () => nav?.recenter());
@@ -297,13 +289,28 @@ function ensureNav() {
     onArrive: () => {
       navigating = false;
       renderNav({ state: 'arrived' });
-      setTimeout(() => { if (current === 'nav') show('dash'); }, 5000);
+      setTimeout(() => { if (!navigating) setGuideMode(false); }, 5000);
     },
     speak,
   });
   nav.setTheme(resolvedTheme());
   nav.setSaver(settings.saver);
   return nav;
+}
+
+function setGuideMode(on) {
+  $('#screen-maps').classList.toggle('browsing', !on);
+  $('#maps-browse').hidden = on;
+  $('#maps-guide').hidden = !on;
+  $('#btn-voice').hidden = !on;
+  nav?.resize();
+}
+
+function openMaps() {
+  ensureNav();
+  setGuideMode(navigating);
+  if (!navigating) renderPlaces();
+  if (gps.position) nav.update(gps.position, gps.accuracy);
 }
 
 let destName = '';
@@ -321,9 +328,9 @@ function renderNav(s) {
   if (s.instruction !== renderNav.last) { renderNav.last = s.instruction; replay($('.turn'), 'bump'); }
   setTurn(icon, rot, shortDist(s.toTurn), s.instruction);
   $('#nav-eta').textContent = fmtClock(new Date(Date.now() + s.remainingTime * 1000));
-  $('#nav-time').textContent = fmtMinutes(s.remainingTime);
+  $('#nav-time').textContent = String(Math.max(1, Math.round(s.remainingTime / 60)));
   const d = distParts(s.remaining);
-  $('#nav-dist').textContent = `${d.v} ${d.u}`;
+  $('#nav-dist').textContent = d.v; $('#nav-dist-unit').textContent = d.u;
 }
 
 async function startNavigation(place) {
@@ -332,255 +339,367 @@ async function startNavigation(place) {
     return;
   }
   destName = place.name;
-  $('#nav-dest').textContent = `to ${place.name}`;
+  $('#nav-dest').textContent = place.name;
   $('#nav-eta').textContent = '--:--'; $('#nav-time').textContent = '–'; $('#nav-dist').textContent = '–';
-  show('nav');
-  ensureNav();
   navigating = true;
+  renderNav.last = null;
+  show('maps');
   speechUnlock();
+  const route = css('--blue') || '#0A84FF';
   if (DEMO) {
-    await nav.start(place, null, accent());
+    await nav.start(place, null, route);
     nav._setRoute(demoRoute());
     nav.update(gps.position, 5);
   } else {
-    await nav.start(place, gps.position, accent());
+    await nav.start(place, gps.position, route);
   }
+  updateAwake();
 }
 $('#btn-nav-end').addEventListener('click', () => {
-  navigating = false; nav?.stop(); speechSynthesis?.cancel(); show('dash');
+  navigating = false; nav?.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel();
+  setGuideMode(false); renderPlaces();
+  if (gps.position) nav.update(gps.position, gps.accuracy);
+  updateAwake();
 });
 
-// iOS only lets speech start from a tap; prime it once.
-let speechReady = false;
-function speechUnlock() {
-  if (speechReady || !('speechSynthesis' in window)) return;
-  speechReady = true;
-  speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-}
-document.addEventListener('pointerdown', speechUnlock, { once: true, passive: true });
-
-// ---------------------------------------------------------------- music
+// ================================================================ music: shared state + polling
 function setPlaying(on) { document.body.dataset.playing = String(!!on); }
-let lastArt = '';
+const fmtMs = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
+const pickImage = (imgs, prefer = 300) => {
+  if (!imgs?.length) return '';
+  const sorted = [...imgs].sort((a, b) => (a.width || 0) - (b.width || 0));
+  return (sorted.find((i) => (i.width || 0) >= prefer) || sorted[sorted.length - 1]).url;
+};
+
+const player = { item: null, isPlaying: false, progress: 0, duration: 0, at: 0, shuffle: false, repeat: 'off', contextUri: '' };
 let nowUri = '';
+let lastArt = '';
+
 function renderMusic(p) {
-  const item = p?.item;
+  const item = p?.item || null;
+  const set = (key, v) => $$(`[data-music="${key}"]`).forEach((el) => { el.textContent = v; });
   const key = item ? `${item.uri || ''}|${item.name}` : '';
   if (key !== renderMusic.key) {
-    if (renderMusic.key !== undefined) $$('.music, .mini-music').forEach((el) => replay(el, 'swap'));
+    if (renderMusic.key !== undefined) $$('.np-widget, .mini-music, #tab-now').forEach((el) => replay(el, 'swap'));
     renderMusic.key = key;
   }
-  if ((item?.uri || '') !== nowUri) { nowUri = item?.uri || ''; liked.markCurrent(); }
-  const set = (key, v) => $$(`[data-music="${key}"]`).forEach((el) => { el.textContent = v; });
+  Object.assign(player, {
+    item, isPlaying: !!p?.is_playing, progress: p?.progress_ms || 0, duration: item?.duration_ms || 0, at: Date.now(),
+    shuffle: !!p?.shuffle_state, repeat: p?.repeat_state || 'off', contextUri: p?.context?.uri || '',
+  });
   if (!item) {
-    set('title', 'Nothing playing'); set('artist', 'Pick something in Spotify'); set('status', 'IDLE');
-    setPlaying(false);
+    set('title', 'Nothing playing'); set('artist', 'Pick something below or in Spotify'); set('album', ' ');
+    set('status', 'Idle');
   } else {
     set('title', item.name);
     set('artist', item.artists?.map((a) => a.name).join(', ') || item.show?.name || '');
-    set('status', p.is_playing ? 'NOW PLAYING' : 'PAUSED');
-    setPlaying(p.is_playing);
+    set('album', item.album?.name || '');
+    set('status', p.is_playing ? 'Playing' : 'Paused');
   }
-  const imgs = item?.album?.images || item?.images || [];
-  const art = (imgs[imgs.length > 1 ? imgs.length - 2 : 0] || {}).url || '';   // medium size, not the 640px one
+  setPlaying(player.isPlaying);
+  $('#btn-shuf').setAttribute('aria-pressed', String(player.shuffle));
+  $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
+  $('#btn-repeat').setAttribute('aria-label', `Repeat: ${player.repeat}`);
+  setIcon($('#repeat-icon'), player.repeat === 'track' ? 'repeatOne' : 'repeat');
+
+  const art = pickImage(item?.album?.images || item?.images || [], 300);
   if (art !== lastArt) {
     lastArt = art;
     $$('[data-music="img"]').forEach((img) => { img.hidden = !art; if (art) img.src = art; else img.removeAttribute('src'); });
   }
+  if ((item?.uri || '') !== nowUri) { nowUri = item?.uri || ''; musicUI.markCurrent(); }
+  musicUI.markContext();
+  progress.paint();
+  progress.sync();
 }
+
+/** Progress bar: estimated locally between polls, ticks once a second only while visible and playing. */
+const progress = {
+  timer: null,
+  value() { return Math.min(player.duration, player.progress + (player.isPlaying ? Date.now() - player.at : 0)); },
+  paint() {
+    const v = this.value();
+    const pct = player.duration ? (v / player.duration) * 100 : 0;
+    $$('[data-music="progress"]').forEach((el) => { el.style.width = `${pct.toFixed(2)}%`; });
+    $$('[data-music="elapsed"]').forEach((el) => { el.textContent = fmtMs(v); });
+    $$('[data-music="remaining"]').forEach((el) => { el.textContent = `-${fmtMs(Math.max(0, player.duration - v))}`; });
+  },
+  sync() {
+    const want = player.isPlaying && !settings.saver && document.visibilityState === 'visible' && (current === 'dash' || current === 'music');
+    if (want && !this.timer) this.timer = setInterval(() => this.paint(), 1000);
+    if (!want && this.timer) { clearInterval(this.timer); this.timer = null; }
+  },
+};
 
 function handleSpotifyError(e, quiet = false) {
   if (e instanceof AuthError || e.name === 'AuthError') { show('login'); showLoginError(e.message); return; }
   if (!quiet || e.code === 'NO_DEVICE') toast(e.message, 3500);
 }
 
-/** Polls Spotify only while a screen that shows music is visible. Slower when paused or in saver mode. */
+/** Polls Spotify only while a screen that shows music is visible; slower when paused or in saver mode. */
 const music = {
   timer: null,
-  playing: false,
+  interval() { return settings.saver ? 15000 : player.isPlaying ? 5000 : 12000; },
   kick() { clearTimeout(this.timer); this.tick(); },
-  interval() {
-    if (settings.saver) return 15000;
-    return this.playing ? 5000 : 12000;
-  },
   async tick() {
     clearTimeout(this.timer);
-    const visible = document.visibilityState === 'visible' && (current === 'dash' || current === 'nav' || current === 'music');
+    const visible = document.visibilityState === 'visible' && current && current !== 'login' && current !== 'settings';
     if (!visible || !spotify.isLoggedIn()) return; // restarted by show() / visibilitychange
-    try {
-      const p = await spotify.getPlayer();
-      this.playing = !!p?.is_playing;
-      renderMusic(p);
-    } catch (e) { handleSpotifyError(e, true); }
+    try { renderMusic(await spotify.getPlayer()); } catch (e) { handleSpotifyError(e, true); }
     this.timer = setTimeout(() => this.tick(), this.interval());
   },
 };
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') music.kick(); else clearTimeout(music.timer);
+  progress.sync();
 });
 
-document.addEventListener('click', async (e) => {
+async function control(fn) {
+  try { await fn(); setTimeout(() => music.kick(), 650); } catch (err) { handleSpotifyError(err); music.kick(); }
+}
+document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-action]');
   if (!b) return;
-  const action = b.dataset.action;
-  try {
-    if (action === 'toggle') {
-      const playing = document.body.dataset.playing === 'true';
-      setPlaying(!playing); // optimistic
-      await (playing ? spotify.pause() : spotify.play());
-    } else if (action === 'next') await spotify.next();
-    else if (action === 'prev') await spotify.previous();
-    setTimeout(() => music.kick(), 700);
-  } catch (err) {
-    handleSpotifyError(err);
-    music.kick();
-  }
+  const a = b.dataset.action;
+  if (a === 'toggle') {
+    const was = player.isPlaying;
+    player.progress = progress.value(); player.at = Date.now(); player.isPlaying = !was;   // optimistic
+    setPlaying(!was); progress.sync();
+    control(() => (was ? spotify.pause() : spotify.play()));
+  } else if (a === 'next') control(() => spotify.next());
+  else if (a === 'prev') control(() => spotify.previous());
+});
+$('#btn-shuf').addEventListener('click', () => {
+  player.shuffle = !player.shuffle; $('#btn-shuf').setAttribute('aria-pressed', String(player.shuffle));
+  control(() => spotify.setShuffle(player.shuffle));
+});
+$('#btn-repeat').addEventListener('click', () => {
+  player.repeat = { off: 'context', context: 'track', track: 'off' }[player.repeat] || 'off';
+  $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
+  setIcon($('#repeat-icon'), player.repeat === 'track' ? 'repeatOne' : 'repeat');
+  toast({ off: 'Repeat off', context: 'Repeat all', track: 'Repeat this song' }[player.repeat], 1200);
+  control(() => spotify.setRepeat(player.repeat));
+});
+$('#seek-bar').addEventListener('click', (e) => {
+  if (!player.duration) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const ms = ((e.clientX - r.left) / r.width) * player.duration;
+  player.progress = ms; player.at = Date.now(); progress.paint();
+  control(() => spotify.seek(ms));
 });
 
-// ---------------------------------------------------------------- liked songs
-const fmtTrackTime = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
-
-const liked = {
-  tracks: [],
-  total: null,
-  next: true,
-  loading: false,
-  loadedAt: 0,
+// ================================================================ music: tabs, liked songs, playlists
+const musicUI = {
+  tab: 'now',
+  liked: { items: [], total: null, next: true, loading: false, at: 0, shown: 0 },
+  lists: { items: [], next: true, loading: false, at: 0 },
   observer: null,
 
-  open() {
-    // Re-use the list for 5 min; reopening is instant and costs no network.
-    if (this.tracks.length && Date.now() - this.loadedAt < 5 * 60 * 1000) { this.shown = 0; this.render(); return; }
-    this.tracks = []; this.total = null; this.next = true; this.shown = 0;
-    $('#liked-list').replaceChildren(h('div', { class: 'liked-msg' }, 'Loading your Liked Songs…'));
+  open() { this.select(this.tab, false); },
+
+  select(tab, animate = true) {
+    this.tab = tab;
+    $$('.music-tabs [role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+    for (const t of ['now', 'liked', 'playlists']) $(`#tab-${t}`).hidden = t !== tab;
+    if (animate) replay($(`#tab-${tab}`), 'enter-fade');
+    if (tab === 'liked') this.openLiked();
+    if (tab === 'playlists') this.openPlaylists();
+  },
+
+  fresh: (o) => o.items.length && Date.now() - o.at < 5 * 60 * 1000,   // reuse for 5 min: no refetch
+
+  errorBox(e, retry) {
+    if (e instanceof AuthError || e.name === 'AuthError') { handleSpotifyError(e); return h('div'); }
+    const box = h('div', { class: 'list-msg' }, e.message);
+    if (e.code === 'SCOPE') box.append(h('button', { class: 'btn-pill green', type: 'button', onclick: () => { spotify.logout(); spotify.login().catch((err) => toast(err.message)); } }, 'Reconnect Spotify'));
+    else box.append(h('button', { class: 'btn-pill', type: 'button', onclick: retry }, 'Try again'));
+    return box;
+  },
+
+  // ---- Liked Songs
+  openLiked() {
+    const L = this.liked;
+    if (this.fresh(L)) { L.shown = 0; this.renderLiked(); return; }
+    Object.assign(L, { items: [], total: null, next: true, shown: 0 });
+    $('#liked-list').replaceChildren(h('div', { class: 'list-msg' }, 'Loading your Liked Songs…'));
     $('#liked-count').textContent = 'Loading…';
-    this.loadMore();
+    this.moreLiked();
   },
-
-  async loadMore() {
-    if (this.loading || !this.next) return;
-    this.loading = true;
+  async moreLiked() {
+    const L = this.liked;
+    if (L.loading || !L.next) return;
+    L.loading = true;
     try {
-      const page = await spotify.getLiked(this.tracks.length, 50);
-      const items = (page?.items || []).map((x) => x.track).filter((t) => t && t.uri && !t.is_local);
-      this.tracks.push(...items);
-      this.total = page?.total ?? this.tracks.length;
-      this.next = !!page?.next;
-      this.loadedAt = Date.now();
-      this.render();
+      const page = await spotify.getLiked(L.items.length, 50);
+      L.items.push(...(page?.items || []).map((x) => x.track).filter((t) => t && t.uri && !t.is_local));
+      L.total = page?.total ?? L.items.length; L.next = !!page?.next; L.at = Date.now();
+      this.renderLiked();
     } catch (e) {
-      this.showError(e);
-    } finally {
-      this.loading = false;
-    }
+      $('#liked-list').replaceChildren(this.errorBox(e, () => { L.at = 0; this.openLiked(); }));
+      $('#liked-count').textContent = '';
+    } finally { L.loading = false; }
   },
-
-  showError(e) {
-    if (e instanceof AuthError || e.name === 'AuthError') { handleSpotifyError(e); return; }
-    const box = h('div', { class: 'liked-msg' }, e.message);
-    if (e.code === 'SCOPE') {
-      box.append(h('button', { class: 'btn-play', type: 'button', onclick: () => { spotify.logout(); spotify.login().catch((err) => toast(err.message)); } }, 'Reconnect Spotify'));
-    } else {
-      box.append(h('button', { class: 'btn-secondary', type: 'button', onclick: () => { this.loadedAt = 0; this.open(); } }, 'Try again'));
-    }
-    $('#liked-list').replaceChildren(box);
-    $('#liked-count').textContent = '';
-  },
-
-  row(t, i) {
-    const imgs = t.album?.images || [];
-    const small = imgs[imgs.length - 1]?.url;          // smallest (~64 px) — light on data and memory
+  songRow(t, i) {
     const art = h('span', { class: 'song-art' });
+    const small = pickImage(t.album?.images, 60);
     if (small && !settings.saver) art.append(h('img', { src: small, alt: '', loading: 'lazy', decoding: 'async' }));
     else { const ph = h('span'); setIcon(ph, 'music'); art.append(ph); }
     const eq = h('span', { class: 'song-eq', hidden: t.uri !== nowUri }); setIcon(eq, 'eq');
-    return h('button', { class: `song${t.uri === nowUri ? ' current' : ''}`, type: 'button', role: 'listitem', dataset: { uri: t.uri }, onclick: () => this.playFrom(i) },
+    return h('button', { class: `song${t.uri === nowUri ? ' current' : ''}`, type: 'button', role: 'listitem', dataset: { uri: t.uri }, onclick: () => this.playLiked(i) },
       art,
       h('span', { class: 'song-text' }, h('span', { class: 'song-title' }, t.name), h('span', { class: 'song-artist' }, (t.artists || []).map((a) => a.name).join(', '))),
-      eq,
-      h('span', { class: 'song-time' }, fmtTrackTime(t.duration_ms || 0)));
+      eq, h('span', { class: 'song-time' }, fmtMs(t.duration_ms || 0)));
   },
-
-  render() {
-    const list = $('#liked-list');
-    $('#liked-count').textContent = this.total != null ? `${this.total} song${this.total === 1 ? '' : 's'}` : '';
-    if (!this.tracks.length) {
-      list.replaceChildren(h('div', { class: 'liked-msg' }, 'No Liked Songs yet. Tap the heart on a song in Spotify to add it.'));
-      return;
-    }
-    const sentinel = h('div', { class: 'liked-more' });
-    const from = this.shown || 0;
-    const rows = this.tracks.map((t, i) => {
-      const r = this.row(t, i);
+  renderLiked() {
+    const L = this.liked;
+    $('#liked-count').textContent = L.total != null ? `${L.total} song${L.total === 1 ? '' : 's'}` : '';
+    if (!L.items.length) { $('#liked-list').replaceChildren(h('div', { class: 'list-msg' }, 'No Liked Songs yet. Tap the heart on a song in Spotify to add it.')); return; }
+    const from = L.shown;
+    const rows = L.items.map((t, i) => {
+      const r = this.songRow(t, i);
       if (i >= from) { r.classList.add('anim-in'); r.style.setProperty('--i', Math.min(i - from, 12)); }
       return r;
     });
-    this.shown = this.tracks.length;
-    list.replaceChildren(...rows, sentinel);
-    // Load the next page only when you scroll near the bottom.
+    L.shown = L.items.length;
+    const sentinel = h('div', { class: 'liked-more' });
+    $('#liked-list').replaceChildren(...rows, sentinel);
     this.observer?.disconnect();
-    if (this.next) {
-      this.observer = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) this.loadMore(); }, { root: list, rootMargin: '300px' });
+    if (L.next) {   // load the next page only when scrolled near the bottom
+      this.observer = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) this.moreLiked(); }, { root: $('#liked-list'), rootMargin: '300px' });
       this.observer.observe(sentinel);
     }
   },
-
+  playLiked(i) { this.playUris(this.liked.items.slice(i).map((t) => t.uri)); },
+  playUris(uris) {
+    if (!uris.length) return;
+    setPlaying(true);
+    control(() => spotify.playTracks(uris.slice(0, 100)));
+  },
   markCurrent() {
     $$('#liked-list .song').forEach((el) => {
       const on = el.dataset.uri === nowUri;
       el.classList.toggle('current', on);
-      el.querySelector('.song-eq').hidden = !on;
+      const eq = el.querySelector('.song-eq'); if (eq) eq.hidden = !on;
     });
   },
 
-  async play(uris) {
-    if (!uris.length) return;
-    try {
-      setPlaying(true);
-      await spotify.playTracks(uris.slice(0, 100));
-      setTimeout(() => music.kick(), 700);
-    } catch (e) { handleSpotifyError(e); music.kick(); }
+  // ---- Playlists
+  openPlaylists() {
+    const P = this.lists;
+    if (this.fresh(P)) { this.renderPlaylists(); return; }
+    Object.assign(P, { items: [], next: true });
+    $('#playlist-grid').replaceChildren(h('div', { class: 'list-msg' }, 'Loading your playlists…'));
+    this.morePlaylists();
   },
-
-  playFrom(i) { this.play(this.tracks.slice(i).map((t) => t.uri)); },
+  async morePlaylists() {
+    const P = this.lists;
+    if (P.loading || !P.next) return;
+    P.loading = true;
+    try {
+      // Up to 200 playlists, fetched in the background page by page.
+      while (P.next && P.items.length < 200) {
+        const page = await spotify.getPlaylists(P.items.length, 50);
+        P.items.push(...(page?.items || []).filter(Boolean));
+        P.next = !!page?.next; P.at = Date.now();
+        this.renderPlaylists();
+      }
+    } catch (e) {
+      $('#playlist-grid').replaceChildren(this.errorBox(e, () => { P.at = 0; this.openPlaylists(); }));
+    } finally { P.loading = false; }
+  },
+  renderPlaylists() {
+    const P = this.lists;
+    if (!P.items.length) { $('#playlist-grid').replaceChildren(h('div', { class: 'list-msg' }, 'No playlists yet.')); return; }
+    const tiles = P.items.map((pl, i) => {
+      const cover = h('span', { class: 'pl-cover' });
+      const img = pickImage(pl.images, 200);
+      if (img && !settings.saver) cover.append(h('img', { src: img, alt: '', loading: 'lazy', decoding: 'async' }));
+      else { const ph = h('span'); setIcon(ph, 'music'); cover.append(ph); }
+      const count = pl.tracks?.total ?? pl.items?.total;
+      const tile = h('button', { class: `pl-tile${pl.uri === player.contextUri ? ' current' : ''}`, type: 'button', dataset: { uri: pl.uri }, onclick: () => {
+        setPlaying(true); toast(`Playing ${pl.name}`, 1400);
+        control(() => spotify.playContext(pl.uri));
+      } },
+      cover, h('span', { class: 'pl-name' }, pl.name),
+      h('span', { class: 'pl-meta' }, [pl.owner?.display_name, count != null ? `${count} songs` : ''].filter(Boolean).join(' · ')));
+      tile.classList.add('anim-in'); tile.style.setProperty('--i', Math.min(i, 12));
+      return tile;
+    });
+    $('#playlist-grid').replaceChildren(...tiles);
+  },
+  markContext() {
+    $$('#playlist-grid .pl-tile').forEach((el) => el.classList.toggle('current', el.dataset.uri === player.contextUri));
+  },
 };
-
-$('#btn-play-all').addEventListener('click', () => liked.playFrom(0));
+$$('.music-tabs [role="tab"]').forEach((t) => t.addEventListener('click', () => musicUI.select(t.dataset.tab)));
+$('#btn-play-all').addEventListener('click', () => musicUI.playLiked(0));
 $('#btn-shuffle').addEventListener('click', () => {
-  const uris = liked.tracks.map((t) => t.uri);
+  const uris = musicUI.liked.items.map((t) => t.uri);
   for (let i = uris.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [uris[i], uris[j]] = [uris[j], uris[i]]; }
-  liked.play(uris);
+  musicUI.playUris(uris);
 });
 
-// ---------------------------------------------------------------- login & keys
+// ================================================================ settings screen
+function renderSettings() {
+  $$('[data-setting]').forEach((el) => {
+    const key = el.dataset.setting;
+    if (el.classList.contains('switch')) el.setAttribute('aria-checked', String(!!settings[key]));
+    else $$('button', el).forEach((b) => b.setAttribute('aria-pressed', String(String(settings[key]) === b.dataset.val)));
+  });
+  $('#spotify-status').textContent = spotify.isLoggedIn() ? (DEMO ? 'Demo mode' : 'Connected') : 'Not connected';
+  $('#btn-logout').textContent = spotify.isLoggedIn() ? 'Log out' : 'Log in';
+  const k = getKeys();
+  const built = DEFAULTS.SPOTIFY_CLIENT_ID && DEFAULTS.ORS_API_KEY;
+  $('#keys-status').textContent = built ? 'Built in from GitHub' : k.spotifyClientId && k.orsKey ? 'Saved on this phone' : 'Missing — tap Edit';
+}
+function changeSetting(key, val) {
+  settings[key] = val; saveSettings();
+  if (key === 'theme') applyTheme(true);
+  if (key === 'saver') { applySaver(); music.kick(); progress.sync(); }
+  if (key === 'imperial') applyUnits();
+  if (key === 'voice') applyVoice();
+  if (key === 'diag') renderGps();
+  renderSettings();
+}
+$$('[data-setting]').forEach((el) => {
+  const key = el.dataset.setting;
+  if (el.classList.contains('switch')) el.addEventListener('click', () => changeSetting(key, !settings[key]));
+  else $$('button', el).forEach((b) => b.addEventListener('click', () => {
+    const v = b.dataset.val;
+    changeSetting(key, v === 'true' ? true : v === 'false' ? false : v);
+  }));
+});
+$('#btn-reset-trip').addEventListener('click', () => { if (confirm('Reset trip distance, time and top speed?')) { gps.resetTrip(); toast('Trip reset', 1400); } });
+$('#btn-logout').addEventListener('click', () => {
+  if (spotify.isLoggedIn()) { spotify.logout(); renderSettings(); toast('Logged out of Spotify', 1500); }
+  else show('login');
+});
+
+// ================================================================ login & keys
 function showLoginError(msg) { const el = $('#login-error'); el.textContent = msg; el.hidden = !msg; }
 function renderLogin() {
   const k = getKeys();
   $('#key-spotify').value = k.spotifyClientId;
   $('#key-ors').value = k.orsKey;
   $('#redirect-uri').textContent = spotify.redirectUri();
+  const built = DEFAULTS.SPOTIFY_CLIENT_ID && DEFAULTS.ORS_API_KEY;
+  $('#keys-badge').textContent = built ? '✓ built in' : k.spotifyClientId && k.orsKey ? '✓ saved' : '';
   if (!k.spotifyClientId) $('#setup').open = true;
   $('#btn-login-label').textContent = spotify.isLoggedIn() ? 'Continue' : 'Log in with Spotify';
 }
 $('#btn-save-keys').addEventListener('click', () => {
   setKeys({ spotifyClientId: $('#key-spotify').value, orsKey: $('#key-ors').value });
-  showLoginError(''); toast('Keys saved on this phone', 1600);
+  showLoginError(''); renderLogin(); toast('Keys saved on this phone', 1600);
 });
 $('#btn-login').addEventListener('click', async () => {
   if (spotify.isLoggedIn()) { enterApp(); return; }
-  setKeys({ spotifyClientId: $('#key-spotify').value, orsKey: $('#key-ors').value });
+  if ($('#key-spotify').value.trim() || $('#key-ors').value.trim()) setKeys({ spotifyClientId: $('#key-spotify').value, orsKey: $('#key-ors').value });
   try { await spotify.login(); } catch (e) { showLoginError(e.message); $('#setup').open = true; }
 });
-$('#btn-logout').addEventListener('click', () => {
-  spotify.logout(); show('login');
-});
 
-function enterApp() {
-  gps.start();
-  show('dash');
-}
+function enterApp() { gps.start(); show('dash'); }
 
-// ---------------------------------------------------------------- boot
+// ================================================================ boot
 async function boot() {
   hydrateIcons();
   applyTheme(); applySaver(); applyVoice(); applyUnits();

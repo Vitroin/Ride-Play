@@ -6,7 +6,7 @@ import { readJSON, writeJSON } from './util.js';
 const AUTH = 'https://accounts.spotify.com/authorize';
 const TOKEN = 'https://accounts.spotify.com/api/token';
 const API = 'https://api.spotify.com/v1';
-const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read';
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read playlist-read-private playlist-read-collaborative';
 const TOKENS = 'md.spotify';
 const PKCE = 'md.pkce';
 
@@ -107,7 +107,7 @@ async function api(path, { method = 'GET', body } = {}, retried = false) {
     if (r.status === 403 && e.reason === 'PREMIUM_REQUIRED') e.message = 'Playback control needs Spotify Premium.';
     if (r.status === 403 && /scope/i.test(e.message)) {
       e.code = 'SCOPE';
-      e.message = 'Reconnect Spotify to allow access to your Liked Songs.';
+      e.message = 'Reconnect Spotify once to allow access to your library.';
     }
     throw e;
   }
@@ -143,3 +143,14 @@ export const getLiked = (offset = 0, limit = 50) => api(`/me/tracks?limit=${limi
 
 /** Play a list of track URIs, starting with the first. */
 export const playTracks = (uris) => withDevice(() => api('/me/player/play', { method: 'PUT', body: { uris } }));
+
+/** The user's playlists (own + followed), 50 per page. */
+export const getPlaylists = (offset = 0, limit = 50) => api(`/me/playlists?limit=${limit}&offset=${offset}`);
+
+/** Play an album/playlist by its spotify: URI. */
+export const playContext = (uri) => withDevice(() => api('/me/player/play', { method: 'PUT', body: { context_uri: uri } }));
+
+export const setShuffle = (on) => api(`/me/player/shuffle?state=${on}`, { method: 'PUT' });
+/** state: 'off' | 'context' | 'track' */
+export const setRepeat = (state) => api(`/me/player/repeat?state=${state}`, { method: 'PUT' });
+export const seek = (ms) => api(`/me/player/seek?position_ms=${Math.max(0, Math.round(ms))}`, { method: 'PUT' });

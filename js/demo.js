@@ -64,13 +64,22 @@ export class DemoGps extends EventTarget {
 
 /** Fake Spotify with the same surface as js/spotify.js. */
 export function demoSpotify() {
-  const state = { is_playing: true, item: { name: 'Demo track', artists: [{ name: 'Moto Dash' }], album: { images: [] } } };
+  const state = {
+    is_playing: true, progress_ms: 42000, shuffle_state: false, repeat_state: 'off', context: null,
+    item: { uri: 'demo:x', name: 'Demo track', duration_ms: 214000, artists: [{ name: 'Moto Dash' }], album: { name: 'Demo album', images: [] } },
+  };
+  let t0 = Date.now();
+  const snapshot = () => {
+    if (state.is_playing) { state.progress_ms = Math.min(state.item.duration_ms, state.progress_ms + (Date.now() - t0)); }
+    t0 = Date.now();
+    return { ...state };
+  };
   return {
     isConfigured: () => true, isLoggedIn: () => true, logout() {}, login() {},
     handleRedirect: async () => false, redirectUri: () => location.origin + location.pathname,
-    getPlayer: async () => state,
-    play: async () => { state.is_playing = true; }, pause: async () => { state.is_playing = false; },
-    next: async () => { state.item = { ...state.item, name: `Demo track ${Math.ceil(Math.random() * 9)}` }; },
+    getPlayer: async () => snapshot(),
+    play: async () => { snapshot(); state.is_playing = true; }, pause: async () => { snapshot(); state.is_playing = false; },
+    next: async () => { state.item = { ...state.item, uri: `demo:n${Date.now()}`, name: `Demo track ${Math.ceil(Math.random() * 9)}` }; state.progress_ms = 0; t0 = Date.now(); },
     previous: async () => {},
     getLiked: async (offset = 0) => {
       const total = 64;
@@ -80,7 +89,15 @@ export function demoSpotify() {
       }));
       return { items, total, next: offset + 50 < total ? 'more' : null };
     },
-    playTracks: async (uris) => { state.is_playing = true; state.item = { ...state.item, uri: uris[0], name: `Demo song ${Number(uris[0].split(':')[1]) + 1}` }; },
+    playTracks: async (uris) => { state.is_playing = true; state.progress_ms = 0; t0 = Date.now(); state.context = null; state.item = { ...state.item, uri: uris[0], name: `Demo song ${Number(uris[0].split(':')[1]) + 1}` }; },
+    getPlaylists: async () => ({
+      items: ['Road Trip', 'Night Ride', 'Focus', 'Throwbacks', 'Chill', 'Workout', 'Arabic Hits', 'Discover'].map((name, i) => ({ uri: `demo:pl${i}`, name, owner: { display_name: 'You' }, tracks: { total: 20 + i * 7 }, images: [] })),
+      total: 8, next: null,
+    }),
+    playContext: async (uri) => { state.is_playing = true; state.progress_ms = 0; t0 = Date.now(); state.context = { uri }; state.item = { ...state.item, uri: `demo:c${Date.now()}`, name: 'Playlist song 1' }; },
+    setShuffle: async (on) => { state.shuffle_state = on; },
+    setRepeat: async (s) => { state.repeat_state = s; },
+    seek: async (ms) => { state.progress_ms = ms; t0 = Date.now(); },
     AuthError: class extends Error {},
   };
 }

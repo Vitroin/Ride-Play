@@ -47,10 +47,30 @@ Sign up at https://openrouteservice.org/dev → create a token. The free plan's 
 
 ## Features
 
-- **Dashboard:** speed dial (changes colour as you go faster), trip distance, ride time, average and top speed, clock, GPS status.
-- **Navigation:** in-app map, turn-by-turn with voice, automatic rerouting, saved places.
-- **Music:** Spotify now playing with play/pause/skip. Tap the song to open **Liked Songs**; tap any song to play from there, or use Play or Shuffle.
-- **Themes:** Dark / Light / Auto. **Animations:** short and smooth; turned off by battery saver or iOS *Reduce Motion*.
+The layout takes its cue from in-car dashboards: an app dock on the left and big touch targets.
+
+- **Dashboard:** speed dial (colour changes with speed), trip stats, a now-playing widget with progress and controls, and your top destinations.
+- **Maps:** "Where to?" search with favourites. In-app turn-by-turn navigation with voice and automatic rerouting.
+- **Music (Spotify):**
+  - **Now Playing:** large album art, seek bar, shuffle and repeat.
+  - **Liked Songs:** tap a song to play from there, or use Play / Shuffle.
+  - **Playlists:** your library as a cover grid; tap to play.
+- **Settings:** appearance (Auto/Dark/Light), battery saver, units, voice, navigation app, GPS diagnostics, Spotify account, keys, trip reset.
+- **Animations:** short and smooth; turned off by battery saver or iOS *Reduce Motion*.
+
+## API keys: set once, never type them again
+
+Add them as GitHub repository secrets. Each deploy builds them into the app:
+
+```
+gh secret set SPOTIFY_CLIENT_ID
+gh secret set ORS_API_KEY
+gh workflow run deploy.yml
+```
+
+(Each `gh secret set` asks you to paste the value.) Keys you type in the app's **Setup & API keys** screen still work as a fallback.
+
+> The site is public, so anyone who opens it can read these keys. That's normal for a browser-only app. The Spotify Client ID isn't a secret (sign-in uses PKCE), and the OpenRouteService key only gives access to your free routing quota. If it's ever abused, regenerate it and update the secret.
 
 ## How it saves battery
 

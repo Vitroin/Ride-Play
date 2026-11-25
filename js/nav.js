@@ -58,6 +58,7 @@ export class NavSession {
 
   stop() {
     this.active = false;
+    this.lastView = null;
     for (const l of [this.casing, this.line, this.destMarker]) l?.remove();
     this.user.remove();
     this.casing = this.line = this.destMarker = null;
@@ -66,7 +67,7 @@ export class NavSession {
 
   recenter() {
     this.follow = true;
-    if (this.lastPos) this.map.setView([this.lastPos.lat, this.lastPos.lng], 17, { animate: false });
+    if (this.lastPos) this.map.setView([this.lastPos.lat, this.lastPos.lng], this.active ? 17 : 15, { animate: false });
   }
 
   async _route(pos) {
@@ -118,16 +119,18 @@ export class NavSession {
   }
 
   update(pos, accuracy) {
-    if (!this.active || !pos) return;
+    if (!pos) return;
     this.lastPos = pos;
     this.user.setLatLng([pos.lat, pos.lng]);
     if (!this.map.hasLayer(this.user)) this.user.addTo(this.map);
 
     // Only move the map when we've actually moved a few metres (fewer repaints).
     if (this.follow && (!this.lastView || haversine(this.lastView, pos) > 4)) {
-      this.map.setView([pos.lat, pos.lng], Math.max(this.map.getZoom(), 16), { animate: !this.saver });
+      const z = this.active ? Math.max(this.map.getZoom(), 16) : Math.max(this.map.getZoom(), 14);
+      this.map.setView([pos.lat, pos.lng], z, { animate: !this.saver && !!this.lastView });
       this.lastView = pos;
     }
+    if (!this.active) return;
 
     if (!this.route) { if (!this.routing) this._route(pos); return; }
 
