@@ -208,12 +208,13 @@ body.dock-edit .dock-apps .app-icon:nth-child(2n) { animation-delay: -0.15s; }
 .gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(135deg); }
 .gauge-track, .gauge-fill { fill: none; stroke-width: 13; stroke-linecap: round; }
 .gauge-track { stroke: var(--card-2); stroke-dasharray: 395.84 527.79; }
-.gauge-fill { stroke: var(--band); stroke-dasharray: 0 527.79; transition: stroke-dasharray 0.4s ease-out, stroke 0.4s; }
+.gauge-fill { stroke: var(--band); stroke-dasharray: 0 527.79; transition: stroke-dasharray 0.4s ease-out, stroke 0.4s, opacity 0.2s; }
+.gauge-fill.zero { opacity: 0; }
 .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .gauge-num { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 38cqh; line-height: 0.9; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .gauge-num.three { font-size: 29cqh; }
 .gauge-unit { font-size: 9cqh; font-weight: 600; color: var(--muted); margin-top: 2cqh; }
-.gps-diag { margin-top: 2cqh; max-width: 70%; font-size: 5.5cqh; font-weight: 600; color: var(--yellow); text-align: center; line-height: 1.3; }
+.gps-diag { margin-top: 2.5cqh; max-width: 78%; font-size: clamp(10px, 4cqh, 13px); font-weight: 700; color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); padding: 3px 9px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 
 .stats { flex: 1; min-width: 0; display: grid; grid-template-rows: repeat(4, auto); gap: 10px; align-content: center; }
 .stat-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -288,7 +289,7 @@ body[data-playing="true"] .i-play { display: none !important; }
   width: var(--panel-w); padding: 10px; display: flex; flex-direction: column; gap: 10px;
 }
 /* Hide/show the Where-to panel: it slides off to the left while the pill springs in. */
-#maps-browse { transition: transform 0.34s var(--ease-out), opacity 0.24s ease, visibility 0s linear 0s; }
+#maps-browse { will-change: transform, opacity; transition: transform 0.34s var(--ease-out), opacity 0.24s ease, visibility 0s linear 0s; }
 .maps.panel-hidden #maps-browse {
   transform: translateX(calc(-100% - 24px)); opacity: 0; visibility: hidden; pointer-events: none;
   transition: transform 0.34s var(--ease-out), opacity 0.22s ease 0.08s, visibility 0s linear 0.34s;
@@ -370,6 +371,7 @@ body[data-playing="true"] .i-play { display: none !important; }
 .music-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; overflow: hidden; color: var(--text); }
 .music-tabs { display: flex; align-items: center; gap: 6px; flex: none; padding-bottom: 10px; border-bottom: 1px solid var(--hairline); }
 .music-tabs [role="tab"] {
+  white-space: nowrap; flex: none;
   height: 42px; padding: 0 16px; border-radius: 999px; border: none; background: transparent;
   font-weight: 700; font-size: 15px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px;
 }
@@ -383,6 +385,10 @@ body[data-playing="true"] .i-play { display: none !important; }
 .now-art { position: relative; width: min(100cqh, 300px, 46cqw); height: min(100cqh, 300px, 46cqw); flex: none; border-radius: 14px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 .now-art .art-ph { font-size: 64px; }
 .now-info { flex: 1; min-width: 0; max-height: 100%; display: flex; flex-direction: column; }
+/* "Spotify · Playing" above the title: portrait only (landscape shows Spotify in the tab bar). */
+.now-source { display: none; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
+.now-source [data-icon] { font-size: 13px; }
+body.art-tint .music-card.on-now .now-source { color: rgba(255, 255, 255, 0.9); }
 .now-title { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-artist { font-size: 18px; font-weight: 600; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-album { font-size: 14px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -647,7 +653,17 @@ body.saver [data-music="img"] { display: none !important; }
   .maps.browsing .map { left: var(--ml); top: 45%; }
   .maps.browsing.map-wide .map { top: var(--mt); }
   .dest-panel { width: auto; right: var(--mr); bottom: calc(55% + 10px); }
-  .now { flex-direction: column; padding: 0; }
+  .toast { bottom: calc(70px + env(safe-area-inset-bottom) + 14px); }   /* above the bottom dock */
+  .now { flex-direction: column; padding: 0; gap: 14px; }
+  /* the info column must be as wide as the card, not as wide as a long song title */
+  .now-info { align-self: stretch; width: 100%; flex: none; }
+  .now-title { font-size: 24px; }
+  .music-tabs { gap: 2px; }
+  .music-tabs [role="tab"] { padding: 0 11px; font-size: 14px; }
+  .music-tabs [role="tab"] [data-icon], .source-tag { display: none; }
+  .now-source { display: inline-flex; }
+  .maps.panel-hidden #maps-browse { transform: translateY(calc(-100% - 24px)); }
+  .maps:not(.panel-hidden) .where-pill { transform: translateY(-12px) scale(0.85); }
   .now-art { width: min(45cqh, 100cqw); height: min(45cqh, 100cqw); }
   .turn, .eta { width: calc(100% - 24px); }
   .mini-music { display: none; }

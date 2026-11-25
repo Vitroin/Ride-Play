@@ -89,44 +89,53 @@ const dockEdit = {
   vertical: () => getComputedStyle(dockApps).flexDirection.startsWith('column'),
   offset: (el, v) => (v ? el.offsetTop : el.offsetLeft),
 
+  // While dragging, nothing is moved in the page: the icon follows the finger with a transform
+  // and its neighbours slide aside with transforms. The real order changes on drop. (Moving a
+  // touched element in the page makes iPhone Safari cancel the touch, which stopped the drag.)
   beginDrag(icon, e) {
     const v = this.vertical();
-    this.drag = { icon, id: e.pointerId, v, start: v ? e.clientY : e.clientX, home: this.offset(icon, v) };
+    const icons = $$('.app-icon', dockApps);
+    const offs = icons.map((b) => this.offset(b, v));
+    this.drag = {
+      icon, icons, offs, v, id: e.pointerId,
+      from: icons.indexOf(icon), to: icons.indexOf(icon),
+      start: v ? e.clientY : e.clientX, delta: 0,
+      step: icons.length > 1 ? offs[1] - offs[0] : 1,
+    };
     icon.classList.add('dragging');
     icon.style.transition = 'none';
-    try { icon.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    for (const b of icons) if (b !== icon) b.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
   },
   moveDrag(e) {
     const d = this.drag;
-    const want = d.home + ((d.v ? e.clientY : e.clientX) - d.start);   // where the icon should be (layout px)
-    const icons = $$('.app-icon', dockApps);
-    const others = icons.filter((b) => b !== d.icon);
-    const size = d.v ? d.icon.offsetHeight : d.icon.offsetWidth;
-    // New slot = how many other icons have their centre before the dragged icon's centre.
-    const slot = others.filter((b) => this.offset(b, d.v) < want).length;
-    if (icons.indexOf(d.icon) !== slot) {
-      const before = new Map(others.map((b) => [b, this.offset(b, d.v)]));
-      dockApps.insertBefore(d.icon, others[slot] || null);
-      for (const b of others) {                       // FLIP: neighbours slide into their new place
-        const delta = before.get(b) - this.offset(b, d.v);
-        if (!delta) continue;
-        b.style.transition = 'none';
-        b.style.transform = d.v ? `translateY(${delta}px)` : `translateX(${delta}px)`;
-        void b.offsetWidth;
-        b.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)';
-        b.style.transform = '';
-      }
-    }
-    void size;
-    const shift = want - this.offset(d.icon, d.v);
-    d.icon.style.transform = d.v ? `translateY(${shift}px)` : `translateX(${shift}px)`;
+    const n = d.icons.length;
+    const min = d.offs[0] - d.offs[d.from], max = d.offs[n - 1] - d.offs[d.from];
+    d.delta = Math.max(min - d.step * 0.4, Math.min(max + d.step * 0.4, (d.v ? e.clientY : e.clientX) - d.start));
+    d.to = Math.max(0, Math.min(n - 1, Math.round((d.offs[d.from] + d.delta - d.offs[0]) / d.step)));
+    const axis = d.v ? 'translateY' : 'translateX';
+    d.icon.style.transform = `${axis}(${d.delta}px)`;
+    d.icons.forEach((b, i) => {
+      if (b === d.icon) return;
+      let shift = 0;
+      if (d.from < d.to && i > d.from && i <= d.to) shift = -d.step;
+      if (d.from > d.to && i >= d.to && i < d.from) shift = d.step;
+      b.style.transform = shift ? `${axis}(${shift}px)` : '';
+    });
   },
   endDrag() {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
+    const order = d.icons.filter((b) => b !== d.icon);
+    order.splice(d.to, 0, d.icon);
+    const visual = d.offs[d.from] + d.delta;        // where the icon is on screen right now
+    for (const b of d.icons) { b.style.transition = 'none'; b.style.transform = ''; }
+    order.forEach((b) => dockApps.append(b));      // now reorder for real (finger is up)
+    const axis = d.v ? 'translateY' : 'translateX';
+    d.icon.style.transform = `${axis}(${visual - this.offset(d.icon, d.v)}px)`;
+    void d.icon.offsetWidth;
     d.icon.classList.remove('dragging');
-    d.icon.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+    d.icon.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)';
     d.icon.style.transform = '';
     saveDockOrder();
   },
@@ -151,6 +160,8 @@ window.addEventListener('pointermove', (e) => {
   if (pr && Math.hypot(e.clientX - pr.sx, e.clientY - pr.sy) > 10) { clearTimeout(pr.timer); dockEdit.press = null; }
   if (dockEdit.drag && e.pointerId === dockEdit.drag.id) dockEdit.moveDrag(e);
 }, { passive: true });
+// iPhone: also block the page from treating the drag as a scroll.
+document.addEventListener('touchmove', (e) => { if (dockEdit.drag) e.preventDefault(); }, { passive: false });
 const endPress = (e) => {
   if (dockEdit.press) { clearTimeout(dockEdit.press.timer); dockEdit.press = null; }
   if (dockEdit.drag && e.pointerId === dockEdit.drag.id) dockEdit.endDrag();
@@ -272,6 +283,7 @@ function renderGps() {
   document.documentElement.style.setProperty('--band', speedBand(gps.speed));
   const frac = Math.min(1, (gps.speed * 3.6) / 200); // full scale 200 km/h
   $('#gauge-fill').style.strokeDasharray = `${(frac * 395.84).toFixed(1)} 527.79`;
+  $('#gauge-fill').classList.toggle('zero', frac < 0.004);   // a 0-length round-capped stroke draws a dot
 
   const d = distParts(gps.distance);
   $('#stat-dist').textContent = d.v;
@@ -291,8 +303,8 @@ function renderGps() {
   const diag = $('#gps-diag');
   diag.hidden = !settings.diag;
   if (settings.diag) {
-    const src = { gps: 'GPS speed', position: 'From position', none: 'No speed signal' }[gps.source] || 'Demo';
-    diag.textContent = `${src} · raw ${speedText(gps.rawSpeed || 0)} · ${gps.moving === false ? 'stopped' : 'moving'}`;
+    const src = { gps: 'GPS', position: 'Position', none: 'No speed signal' }[gps.source] || 'Demo';
+    diag.textContent = gps.source === 'none' ? src : `${src} · raw ${speedText(gps.rawSpeed || 0)}`;
   }
 
   if (current === 'dash' && Date.now() - lastDestRender > 15000) { lastDestRender = Date.now(); renderDestWidget(); }
@@ -1029,7 +1041,18 @@ async function boot() {
   applyDockOrder();
   applyTheme(); applySaver(); applyVoice(); applyUnits();
   scheduleClock();
-  if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && !DEMO) {
+    // When a new version takes over, reload once so the page never runs new code with old styles
+    // (not while navigating: then it applies next time the app opens).
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !reloaded && !navigating) { reloaded = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  }
   if (DEMO) places.seedPlaces(DEMO_PLACES);
 
   try {
