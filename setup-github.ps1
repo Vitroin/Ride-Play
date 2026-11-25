@@ -1,7 +1,8 @@
 # One-time setup (Windows): creates the GitHub repo, pushes the code, turns on GitHub Pages.
 # Usage:  powershell -ExecutionPolicy Bypass -File .\setup-github.ps1 [-Repo moto-dash]
 param([string]$Repo = "moto-dash")
-$ErrorActionPreference = "Stop"
+# "Continue": in Windows PowerShell 5.1, "Stop" turns gh/git stderr output into fatal errors.
+$ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "Install Git first: https://git-scm.com/downloads"; exit 1 }
