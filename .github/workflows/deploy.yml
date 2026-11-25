@@ -3,7 +3,8 @@
 # API keys: add them once as repository secrets and they're built into the
 # site, so you never type them on the phone:
 #   gh secret set SPOTIFY_CLIENT_ID
-#   gh secret set ORS_API_KEY
+#   gh secret set ORS_API_KEY      (optional)
+#   gh secret set CARTO_KEY        (optional, nicer map style)
 name: Deploy to GitHub Pages
 
 on:
@@ -30,14 +31,15 @@ jobs:
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+          CARTO_KEY: ${{ secrets.CARTO_KEY }}
         run: |
           mkdir _site
           cp -r index.html styles.css sw.js manifest.webmanifest js icons vendor _site/
           # Keys from repo secrets (empty if not set — the app then asks on the phone).
           node -e "
-            const k = { SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID || '', ORS_API_KEY: process.env.ORS_API_KEY || '' };
+            const k = { SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID || '', ORS_API_KEY: process.env.ORS_API_KEY || '', CARTO_KEY: process.env.CARTO_KEY || '' };
             require('fs').writeFileSync('_site/config.js', 'export const DEFAULTS = ' + JSON.stringify(k, null, 2) + ';\n');
-            console.log('Spotify Client ID:', k.SPOTIFY_CLIENT_ID ? 'set' : 'NOT SET', '| ORS key:', k.ORS_API_KEY ? 'set' : 'NOT SET');
+            console.log('Spotify Client ID:', k.SPOTIFY_CLIENT_ID ? 'set' : 'NOT SET', '| ORS key:', k.ORS_API_KEY ? 'set' : 'not set', '| CARTO key:', k.CARTO_KEY ? 'set' : 'not set');
           "
           # New cache name per deploy, so phones pick up the update on next open.
           sed -i "s/motodash-v1/motodash-${GITHUB_SHA::7}/" _site/sw.js

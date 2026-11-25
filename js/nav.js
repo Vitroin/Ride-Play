@@ -2,11 +2,20 @@
 import { haversine, projectOnSegment } from './util.js';
 import { route as fetchRoute } from './routing.js';
 
-const TILES = {
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+import { DEFAULTS } from '../config.js';
+
+// Map tiles. CARTO's basemaps (the nicer dark/light styles) now need a free key; without one
+// they're covered in an "API KEY REQUIRED" watermark. So:
+//   • CARTO_KEY set (GitHub secret) → CARTO Dark Matter / Voyager.
+//   • no key → OpenStreetMap's standard tiles, darkened with a CSS filter in dark mode.
+const CARTO_KEY = (DEFAULTS.CARTO_KEY || '').trim();
+const CARTO = {
+  dark: `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`,
+  light: `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`,
 };
-const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ATTR = CARTO_KEY ? `${OSM_ATTR} &copy; <a href="https://carto.com/attributions">CARTO</a>` : OSM_ATTR;
 
 /**
  * Map + turn-by-turn guidance.
@@ -24,17 +33,24 @@ export class NavSession {
       .setView([20, 10], 3);
     this.map.attributionControl.setPrefix(false);
     this.tiles = L.tileLayer(this._tileUrl(), { subdomains: 'abcd', maxZoom: 19, attribution: ATTR, keepBuffer: 1 }).addTo(this.map);
+    this._applyTileFilter();
     this.map.on('dragstart', () => { this.follow = false; });
     this.user = L.circleMarker([0, 0], { radius: 9, color: '#FFFFFF', weight: 3, fillColor: '#00C8E6', fillOpacity: 1 });
     this.lastView = null;
   }
 
   _tileUrl() {
-    const url = TILES[this.theme];
+    if (!CARTO_KEY) return OSM;
+    const url = CARTO[this.theme];
     return this.saver ? url.replace('{r}', '') : url; // saver: standard-res tiles, ¼ the data
   }
 
-  setTheme(theme) { this.theme = theme; this.tiles.setUrl(this._tileUrl()); }
+  /** OSM tiles only come in a light style: invert them for the dark theme (styles.css). */
+  _applyTileFilter() {
+    this.map.getContainer().classList.toggle('osm-dark', !CARTO_KEY && this.theme === 'dark');
+  }
+
+  setTheme(theme) { this.theme = theme; this.tiles.setUrl(this._tileUrl()); this._applyTileFilter(); }
   setSaver(on) { this.saver = on; this.tiles.setUrl(this._tileUrl()); }
   resize() { setTimeout(() => this.map.invalidateSize(), 60); }
 

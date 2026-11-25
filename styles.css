@@ -2,8 +2,9 @@
    Moto Dash — car-dashboard style (left app dock, widget dashboard,
    full-bleed maps, big-tile music). Dark default: true black is the most
    power-efficient colour on iPhone OLED screens.
-   Battery: no infinite animations, no blur/backdrop-filter, one-shot
-   transform/opacity motion only, all off in saver / Reduce Motion.
+   Battery: no infinite animations, one-shot transform/opacity motion only,
+   all off in saver / Reduce Motion. Blur (backdrop-filter) is only used by
+   the opt-in Liquid Glass look, which battery saver turns off.
    ========================================================= */
 
 :root, [data-theme="dark"] {
@@ -28,6 +29,7 @@
   --danger-bg: #3A1513;
   --on-accent: #000000;
   --map-bg: #111316;
+  --hairline: rgba(255, 255, 255, 0.09);
   --band: var(--lime);
   color-scheme: dark;
 }
@@ -37,6 +39,7 @@
   --text: #000000; --muted: #5C5C63; --faint: #6B6B72;
   --blue: #0060DF; --green: #138A43; --teal: #08857C; --cyan: #007FA3; --lime: #3D8F00; --orange: #C75500;
   --magenta: #CC1458; --yellow: #9A6E00; --red: #D11A10; --danger-bg: #FFE2E0; --on-accent: #FFFFFF; --map-bg: #E9ECF1;
+  --hairline: rgba(0, 0, 0, 0.08);
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
@@ -45,6 +48,7 @@
     --text: #000000; --muted: #5C5C63; --faint: #6B6B72;
     --blue: #0060DF; --green: #138A43; --teal: #08857C; --cyan: #007FA3; --lime: #3D8F00; --orange: #C75500;
     --magenta: #CC1458; --yellow: #9A6E00; --red: #D11A10; --danger-bg: #FFE2E0; --on-accent: #FFFFFF; --map-bg: #E9ECF1;
+    --hairline: rgba(0, 0, 0, 0.08);
     color-scheme: light;
   }
 }
@@ -81,7 +85,7 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
   position: absolute; top: 0; bottom: 0; left: 0; z-index: 10;
   width: calc(78px + env(safe-area-inset-left));
   padding: max(12px, env(safe-area-inset-top)) 0 max(12px, env(safe-area-inset-bottom)) env(safe-area-inset-left);
-  background: var(--dock);
+  background: var(--dock); border-right: 1px solid var(--hairline);
   display: flex; flex-direction: column; align-items: center; gap: 14px;
 }
 .no-dock .dock { display: none; }
@@ -109,6 +113,8 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
 .ai-orange { background: linear-gradient(#FFA040, #F06A00); }
 .ai-yellow { background: linear-gradient(#FFD84A, #F2B300); color: #000; }
 .ai-red { background: linear-gradient(#FF6A5F, #E0281E); }
+.ai-glass { background: linear-gradient(135deg, #8EE3FF, #6B7CFF 55%, #B57BFF); }
+.ai-dim { background: linear-gradient(#5E5CE6, #3634A3); }
 .dock .app-icon[aria-current="page"]::after {
   content: ""; position: absolute; left: -11px; top: 50%; width: 4px; height: 22px; margin-top: -11px;
   border-radius: 2px; background: var(--text);
@@ -125,7 +131,7 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
   padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) 12px;
 }
 .no-dock .screen { padding-left: max(14px, env(safe-area-inset-left)); }
-.card { background: var(--card); border-radius: 22px; }
+.card { position: relative; background: var(--card); border-radius: 22px; border: 1px solid var(--hairline); }
 .eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
 .eyebrow [data-icon] { font-size: 12px; }
 
@@ -240,19 +246,42 @@ body[data-playing="true"] .i-play { display: none !important; }
 .dest-side.save { color: var(--green); }
 .empty { color: var(--muted); font-size: 14px; padding: 12px; border: 1px dashed var(--card-3); border-radius: 14px; line-height: 1.4; }
 
-/* ---------- maps ---------- */
-.maps { padding: 0; }
-.map { position: absolute; inset: 0; background: var(--map-bg); }
-.maps.browsing .map { left: calc(12px + min(340px, 44vw) + 6px); }
+/* ---------- maps ----------
+   The map sits in its own rounded frame (like a card), with the Where-to panel
+   beside it, and guidance cards floating inside the frame's edges. */
+.maps {
+  padding: 0;
+  --mt: max(10px, env(safe-area-inset-top)); --mr: max(12px, env(safe-area-inset-right));
+  --mb: max(10px, env(safe-area-inset-bottom)); --ml: 12px; --panel-w: min(340px, 44vw); --in: 10px;
+}
+.map {
+  position: absolute; top: var(--mt); right: var(--mr); bottom: var(--mb); left: var(--ml);
+  background: var(--map-bg); border-radius: 22px; border: 1px solid var(--hairline);
+  clip-path: inset(0 round 22px);   /* reliable corner clipping on iOS Safari */
+}
+.maps.browsing .map { left: calc(var(--ml) + var(--panel-w) + 10px); }
+.maps.browsing.panel-hidden .map { left: var(--ml); }
 .leaflet-container { background: var(--map-bg); font-family: inherit; }
-.leaflet-control-attribution { background: color-mix(in srgb, var(--card) 85%, transparent) !important; color: var(--muted) !important; font-size: 10px !important; border-radius: 6px 0 0 0; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--card) 85%, transparent) !important; color: var(--muted) !important; font-size: 10px !important; border-radius: 8px; margin: 0 14px 8px 0 !important; }
 .leaflet-control-attribution a { color: var(--text) !important; }
+/* OpenStreetMap tiles are light-only: invert them for the dark theme (each tile once, not per frame). */
+.osm-dark .leaflet-tile { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55); }
 .maps > .card, .guide > *, .map-side { position: absolute; z-index: 1000; }
+.guide > .card, .where-pill, .btn-map, .speed-bubble { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32); }
 
 .dest-panel {
-  top: max(10px, env(safe-area-inset-top)); bottom: max(10px, env(safe-area-inset-bottom)); left: 12px;
-  width: min(340px, 44vw); padding: 10px; display: flex; flex-direction: column; gap: 10px;
+  top: var(--mt); bottom: var(--mb); left: var(--ml);
+  width: var(--panel-w); padding: 10px; display: flex; flex-direction: column; gap: 10px;
 }
+.panel-head { display: flex; align-items: center; gap: 8px; flex: none; }
+.panel-head .search { flex: 1; min-width: 0; }
+.btn-round { width: 50px; height: 50px; border-radius: 14px; border: none; background: var(--card-2); color: var(--text); font-size: 21px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.where-pill {
+  top: calc(var(--mt) + var(--in)); left: calc(var(--ml) + var(--in));
+  height: 54px; padding: 0 22px 0 16px; border-radius: 999px; color: var(--muted);
+  font-size: 17px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;
+}
+.where-pill [data-icon] { color: var(--text); font-size: 19px; }
 .search { height: 50px; display: flex; align-items: center; gap: 8px; background: var(--card-2); border-radius: 14px; padding: 0 14px; color: var(--muted); font-size: 18px; flex: none; }
 .search input { flex: 1; min-width: 0; height: 100%; background: transparent; border: none; outline: none; color: var(--text); font-size: 17px; }
 .search input::placeholder { color: var(--faint); }
@@ -260,7 +289,7 @@ body[data-playing="true"] .i-play { display: none !important; }
 .panel-body > .eyebrow { margin-top: 2px; }
 
 .turn {
-  top: max(10px, env(safe-area-inset-top)); left: 12px; width: min(340px, 46vw);
+  top: calc(var(--mt) + var(--in)); left: calc(var(--ml) + var(--in)); width: min(340px, 46vw);
   padding: 12px 14px; display: flex; align-items: center; gap: 12px; background: #1F5E3A; color: #fff;
 }
 .turn-icon { width: 60px; height: 60px; flex: none; font-size: 44px; display: flex; align-items: center; justify-content: center; }
@@ -269,13 +298,13 @@ body[data-playing="true"] .i-play { display: none !important; }
 .turn-dist { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; line-height: 1; }
 .turn-text { font-size: 16px; font-weight: 600; margin-top: 4px; opacity: 0.9; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-.eta { left: 12px; bottom: max(10px, env(safe-area-inset-bottom)); width: min(340px, 46vw); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.eta { left: calc(var(--ml) + var(--in)); bottom: calc(var(--mb) + var(--in)); width: min(340px, 46vw); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .eta-stats { display: flex; justify-content: space-between; gap: 8px; }
 .eta-stats .stat { font-size: 24px; }
 .eta-foot { display: flex; align-items: center; gap: 10px; }
 .eta-dest { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.mini-music { top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: min(300px, 36vw); border-radius: 999px; padding: 6px; display: flex; align-items: center; gap: 8px; }
+.mini-music { top: calc(var(--mt) + var(--in)); right: calc(var(--mr) + var(--in)); width: min(300px, 36vw); border-radius: 999px; padding: 6px; display: flex; align-items: center; gap: 8px; }
 .mini-art { position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex: none; background: var(--card-2); display: flex; align-items: center; justify-content: center; }
 .mini-art .art-ph { font-size: 18px; }
 .mini-info { flex: 1; min-width: 0; }
@@ -284,23 +313,25 @@ body[data-playing="true"] .i-play { display: none !important; }
 .mini-music .ctl-main.sm { width: 46px; height: 46px; }
 
 .speed-bubble {
-  right: max(12px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom));
+  right: calc(var(--mr) + var(--in)); bottom: calc(var(--mb) + var(--in));
   width: 116px; height: 116px; border-radius: 50%; background: var(--card);
   box-shadow: inset 0 0 0 5px var(--band); display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 .bubble-num.three { font-size: 38px; }
 .bubble-num { font-family: 'Space Grotesk', sans-serif; font-size: 46px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .bubble-unit { font-size: 13px; font-weight: 600; color: var(--muted); }
-.map-side { right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; }
+.map-side { right: calc(var(--mr) + var(--in)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; }
 .btn-map { width: 54px; height: 54px; border-radius: 16px; border: none; background: var(--card); font-size: 22px; display: inline-flex; align-items: center; justify-content: center; }
 #btn-recenter { color: var(--blue); }
 #btn-voice[aria-pressed="true"] { color: var(--green); }
-.maps.browsing .map-side { top: auto; transform: none; bottom: max(36px, calc(env(safe-area-inset-bottom) + 26px)); }
-.maps:not(.browsing) .leaflet-bottom.leaflet-right { right: calc(max(12px, env(safe-area-inset-right)) + 124px); }
+.maps.browsing .map-side { top: auto; transform: none; bottom: calc(var(--mb) + 34px); }
+.maps:not(.browsing) .leaflet-bottom.leaflet-right { right: 126px; }
 
-/* ---------- music ---------- */
-.music { display: flex; flex-direction: column; gap: 10px; }
-.music-tabs { display: flex; align-items: center; gap: 6px; flex: none; }
+/* ---------- music ----------
+   Everything lives in one card; the tab bar is its header. */
+.music { display: flex; flex-direction: column; }
+.music-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; overflow: hidden; color: var(--text); }
+.music-tabs { display: flex; align-items: center; gap: 6px; flex: none; padding-bottom: 10px; border-bottom: 1px solid var(--hairline); }
 .music-tabs [role="tab"] {
   height: 42px; padding: 0 16px; border-radius: 999px; border: none; background: transparent;
   font-weight: 700; font-size: 15px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px;
@@ -309,7 +340,7 @@ body[data-playing="true"] .i-play { display: none !important; }
 .source-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--green); padding-right: 4px; }
 .tab-panel { flex: 1; min-height: 0; }
 
-.now { display: flex; align-items: center; gap: 26px; padding: 0 12px; }
+.now { display: flex; align-items: center; gap: 26px; padding: 0 8px; }
 .now-art { position: relative; height: 100%; max-height: 300px; aspect-ratio: 1; flex: none; border-radius: 14px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 .now-art .art-ph { font-size: 64px; }
 .now-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -317,13 +348,23 @@ body[data-playing="true"] .i-play { display: none !important; }
 .now-artist { font-size: 18px; font-weight: 600; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .now-album { font-size: 14px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .seek { margin-top: 16px; }
-.progress.big { width: 100%; height: 6px; border-radius: 3px; cursor: pointer; padding: 10px 0; background-clip: content-box; }
+.progress.big { width: 100%; height: 6px; border-radius: 3px; cursor: pointer; padding: 10px 0; background-clip: content-box; background-color: color-mix(in srgb, var(--text) 22%, transparent); }
 .progress.big .progress-fill { top: 10px; bottom: 10px; background: var(--text); }
 .seek-times { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: -4px; }
-.now-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; max-width: 460px; }
-.ctl-flat { width: 52px; height: 52px; border: none; background: transparent; border-radius: 50%; font-size: 22px; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; position: relative; }
-.ctl-flat[aria-pressed="true"] { color: var(--green); }
-.ctl-flat[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 6px; width: 4px; height: 4px; border-radius: 50%; background: var(--green); }
+/* Apple Music-style transport: bare glyphs, a soft circle only while pressed. */
+.now-controls { display: flex; align-items: center; justify-content: center; gap: clamp(12px, 4vw, 44px); margin-top: 4px; }
+.glyph { width: 68px; height: 68px; border: none; border-radius: 50%; background: transparent; color: var(--text); font-size: 30px; display: inline-flex; align-items: center; justify-content: center; }
+.glyph-main { width: 84px; height: 84px; font-size: 46px; }
+.glyph:active { background: color-mix(in srgb, var(--text) 14%, transparent); transform: scale(0.9); }
+/* Shuffle / Repeat: rounded toggle buttons like Apple Music's queue; filled when on. */
+.now-modes { display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
+.mode-btn {
+  height: 40px; padding: 0 15px 0 12px; border: none; border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--muted);
+  font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px;
+}
+.mode-btn [data-icon] { font-size: 15px; }
+.mode-btn[aria-pressed="true"] { background: var(--text); color: var(--art-ink, var(--bg)); }
 
 .list-tab { display: flex; flex-direction: column; gap: 10px; }
 .list-head { display: flex; align-items: center; gap: 12px; flex: none; }
@@ -353,7 +394,9 @@ body[data-playing="true"] .i-play { display: none !important; }
 
 /* ---------- settings ---------- */
 .settings { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; padding-bottom: 8px; }
+.set-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 16px 0; }
 .group { padding: 4px 14px; }
 .set-row { display: flex; align-items: center; gap: 12px; min-height: 64px; border-bottom: 1px solid var(--line); }
 .set-row:last-child { border-bottom: none; }
@@ -394,7 +437,7 @@ button:active { transform: scale(0.94); }
 .anim-in { animation: item-in 0.32s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 30ms); }
 
 @keyframes pop { from { transform: scale(0.4) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
-.ctl-main [data-icon] { animation: pop 0.26s var(--ease-spring); }
+.ctl-main [data-icon], .glyph-main [data-icon] { animation: pop 0.26s var(--ease-spring); }
 
 @keyframes swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .swap .track, .swap .artist, .swap .now-title, .swap .now-artist, .swap .now-album { animation: swap-in 0.3s var(--ease-out) both; }
@@ -424,6 +467,107 @@ html.theming, html.theming * { transition: background-color 0.35s, color 0.35s, 
   pointer-events: none; /* never block taps underneath */
 }
 
+/* =========================================================
+   Song colours — Now Playing takes two colours from the album art
+   (set as --art-a / --art-b by js/artcolor.js). @property lets the
+   gradient glide to the next song's colours instead of snapping.
+   ========================================================= */
+@property --art-a { syntax: '<color>'; inherits: true; initial-value: #1C1C1E; }
+@property --art-b { syntax: '<color>'; inherits: true; initial-value: #1C1C1E; }
+.music-card, .np-widget { transition: --art-a 0.9s ease, --art-b 0.9s ease, background-color 0.3s; }
+/* On a coloured background the text is always white, like Apple Music. */
+body.art-tint .music-card.on-now, body.art-tint .np-widget {
+  --text: #FFFFFF; --muted: rgba(255, 255, 255, 0.74); --faint: rgba(255, 255, 255, 0.56);
+  --card-2: rgba(255, 255, 255, 0.14); --card-3: rgba(255, 255, 255, 0.24); --hairline: rgba(255, 255, 255, 0.16);
+  --bg: #000000; --art-ink: var(--art-b);
+  color: var(--text);
+}
+body.art-tint .music-card.on-now { background: linear-gradient(150deg, var(--art-a) 0%, var(--art-b) 100%); }
+body.art-tint .np-widget { background: linear-gradient(150deg, var(--art-a) 0%, var(--art-b) 100%); }
+body.art-tint .music-card.on-now .now-art { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45); }
+body.art-tint .music-card.on-now .source-tag, body.art-tint .np-widget .np-source { color: rgba(255, 255, 255, 0.9); }
+
+/* =========================================================
+   Liquid Glass (Settings → Display) — Apple iOS 26-style material:
+   translucent surfaces that blur and saturate what's behind them,
+   a bright specular edge on top, a colourful wallpaper to refract,
+   and SF Pro / SF Pro Rounded on iPhone. Off in battery saver.
+   ========================================================= */
+body.glass {
+  --glass: rgba(28, 28, 34, 0.46);
+  --glass-edge: rgba(255, 255, 255, 0.20);
+  --glass-hi: rgba(255, 255, 255, 0.42);
+  --glass-shadow: 0 10px 32px rgba(0, 0, 0, 0.30);
+  --card-2: rgba(255, 255, 255, 0.10); --card-3: rgba(255, 255, 255, 0.20);
+  --hairline: rgba(255, 255, 255, 0.16);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, Inter, sans-serif;
+  background:
+    radial-gradient(65% 85% at 0% 0%, #2E1C78 0%, transparent 62%),
+    radial-gradient(55% 75% at 100% 5%, #0C5384 0%, transparent 58%),
+    radial-gradient(60% 75% at 85% 100%, #8A3412 0%, transparent 60%),
+    radial-gradient(55% 70% at 12% 100%, #0E5E49 0%, transparent 58%),
+    #05060A;
+}
+html[data-theme="light"] body.glass {
+  --glass: rgba(255, 255, 255, 0.52); --glass-edge: rgba(255, 255, 255, 0.75); --glass-hi: rgba(255, 255, 255, 0.95);
+  --glass-shadow: 0 10px 30px rgba(40, 50, 90, 0.16);
+  --card-2: rgba(255, 255, 255, 0.55); --card-3: rgba(255, 255, 255, 0.8); --hairline: rgba(255, 255, 255, 0.7);
+  background:
+    radial-gradient(65% 85% at 0% 0%, #C9B8FF 0%, transparent 62%),
+    radial-gradient(55% 75% at 100% 5%, #9FD8FF 0%, transparent 58%),
+    radial-gradient(60% 75% at 85% 100%, #FFC9A8 0%, transparent 60%),
+    radial-gradient(55% 70% at 12% 100%, #B6F0D8 0%, transparent 58%),
+    #EEF0F6;
+}
+@media (prefers-color-scheme: light) {
+  html[data-theme="auto"] body.glass {
+    --glass: rgba(255, 255, 255, 0.52); --glass-edge: rgba(255, 255, 255, 0.75); --glass-hi: rgba(255, 255, 255, 0.95);
+    --glass-shadow: 0 10px 30px rgba(40, 50, 90, 0.16);
+    --card-2: rgba(255, 255, 255, 0.55); --card-3: rgba(255, 255, 255, 0.8); --hairline: rgba(255, 255, 255, 0.7);
+    background:
+      radial-gradient(65% 85% at 0% 0%, #C9B8FF 0%, transparent 62%),
+      radial-gradient(55% 75% at 100% 5%, #9FD8FF 0%, transparent 58%),
+      radial-gradient(60% 75% at 85% 100%, #FFC9A8 0%, transparent 60%),
+      radial-gradient(55% 70% at 12% 100%, #B6F0D8 0%, transparent 58%),
+      #EEF0F6;
+  }
+}
+body.glass .card, body.glass .dock, body.glass .btn-map, body.glass .speed-bubble {
+  background-color: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 rgba(255, 255, 255, 0.05), var(--glass-shadow);
+}
+body.glass .card { border-radius: 26px; }
+/* specular sheen: light catching the top-left edge of the glass */
+body.glass .card::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 36%, rgba(255, 255, 255, 0) 72%, rgba(255, 255, 255, 0.07) 100%);
+}
+body.glass .dock { border-width: 0 1px 0 0; }
+body.glass .speed-card { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--band) 45%, transparent), inset 0 1px 0 var(--glass-hi), var(--glass-shadow); }
+body.glass .speed-bubble { box-shadow: inset 0 0 0 5px var(--band), var(--glass-shadow); }
+body.glass .turn { background-color: rgba(26, 120, 70, 0.62); }
+body.glass .map { border-radius: 26px; clip-path: inset(0 round 26px); }
+body.glass .search, body.glass .dest-row, body.glass .seg, body.glass .btn-pill, body.glass .btn-chip, body.glass .btn-round, body.glass .setup, body.glass .mode-btn { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+body.glass .gauge-num, body.glass .stat, body.glass .bubble-num, body.glass .turn-dist {
+  font-family: ui-rounded, 'SF Pro Rounded', -apple-system, 'Space Grotesk', sans-serif;
+}
+body.glass.art-tint .music-card.on-now, body.glass.art-tint .np-widget {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--art-a) 70%, transparent), color-mix(in srgb, var(--art-b) 70%, transparent));
+  background-color: transparent;
+}
+
+/* =========================================================
+   Auto-dim: a black layer fades in after a quiet spell (slowly)
+   and vanishes instantly on touch. It catches the waking tap.
+   ========================================================= */
+.dimmer { position: fixed; inset: 0; z-index: 3000; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.15s ease-out; }
+body.dimmed .dimmer { opacity: 0.68; pointer-events: auto; transition: opacity 1.6s ease-in-out; }
+body.saver.dimmed .dimmer { opacity: 0.78; }
+.dimmer.catch { pointer-events: auto; }
+
 /* ---------- battery saver & reduced motion ---------- */
 body.saver *, body.saver *::before, body.saver *::after { animation: none !important; transition: none !important; }
 body.saver [data-music="img"] { display: none !important; }
@@ -433,7 +577,7 @@ body.saver [data-music="img"] { display: none !important; }
 
 /* ---------- portrait fallback ---------- */
 @media (orientation: portrait) {
-  .dock { width: 100%; height: calc(70px + env(safe-area-inset-bottom)); top: auto; flex-direction: row; padding: 8px 12px env(safe-area-inset-bottom); }
+  .dock { width: 100%; height: calc(70px + env(safe-area-inset-bottom)); top: auto; flex-direction: row; padding: 8px 12px env(safe-area-inset-bottom); border-right: none; border-top: 1px solid var(--hairline); }
   .dock-status { flex-direction: row; gap: 8px; }
   .dock-apps { flex-direction: row; }
   .dock .app-icon, .dock-home { width: 48px; height: 48px; }
@@ -443,8 +587,9 @@ body.saver [data-music="img"] { display: none !important; }
   .dash { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
   .login { grid-template-columns: 1fr; }
   .settings-grid, .liked-list { grid-template-columns: 1fr; }
-  .maps.browsing .map { left: 0; top: 45%; }
-  .dest-panel { width: auto; right: 12px; bottom: 56%; }
+  .maps.browsing .map { left: var(--ml); top: 45%; }
+  .maps.browsing.panel-hidden .map { top: var(--mt); }
+  .dest-panel { width: auto; right: var(--mr); bottom: calc(55% + 10px); }
   .now { flex-direction: column; padding: 0; }
   .now-art { height: 45%; }
   .turn, .eta { width: calc(100% - 24px); }

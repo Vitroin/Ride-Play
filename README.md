@@ -36,6 +36,8 @@ Search and turn-by-turn routing work out of the box with free public services: *
 
 **Optional:** if you add an OpenRouteService key (sign up via openrouteservice.org), the app uses ORS first and falls back to the free services if ORS fails.
 
+**Map tiles** come from OpenStreetMap (no key), darkened for the dark theme. For CARTO's nicer dark/light map styles, request a free key at https://carto.com/basemaps/apikey and add it with `gh secret set CARTO_KEY`.
+
 ## 4. On your iPhone
 
 1. Open your URL in **Safari** → **Share → Add to Home Screen**.
@@ -77,11 +79,12 @@ gh workflow run deploy.yml
 ## How it saves battery
 
 - **Dark theme by default.** iPhone OLED screens use much less power showing black. Light and Auto themes are one tap away (the sun/moon button).
-- **Screen only stays on when it's useful:** while you're on the dashboard or navigating. If you're parked for 5 minutes, it's allowed to dim. In menus, it's released.
+- **Auto-dim (on by default):** the screen never locks while Moto Dash is open, but after 30 s / 1 min / 2 min without a touch it fades to dark (darker pixels use less power on OLED). The first touch only wakes it, so it can't press a button by accident, and it brightens by itself before each turn when navigating. Turn it off in **Settings → Display** to get the old behaviour (screen on while riding, allowed to lock after 5 min parked).
+- **Liquid Glass is opt-in.** The see-through look blurs what's behind each panel, which costs GPU time, so it's off by default and battery saver switches it off.
 - **GPS stops completely** when the app is in the background.
 - **Spotify is only asked "what's playing" while it's on screen:** every 5 s when playing, every 12 s when paused, and never when hidden.
 - **The map only redraws when you've moved a few metres.** Routes and markers are drawn on one canvas.
-- **Battery saver (leaf button):** music updates every 15 s, standard-resolution map tiles (about ¼ the data), no animations, no album art.
+- **Battery saver:** music updates every 15 s, no animations, no album art, no glass or song colours.
 - **Animations are short one-offs** that only fade, slide or scale. There are no looping animations and no blur effects. The clock updates once a minute.
 - **Liked Songs** loads 50 at a time as you scroll, uses the smallest album art, and is reused for 5 minutes instead of re-downloaded.
 

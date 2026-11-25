@@ -5,4 +5,5 @@
 export const DEFAULTS = {
   SPOTIFY_CLIENT_ID: '',
   ORS_API_KEY: '',
+  CARTO_KEY: '',   // optional: nicer map style (free key at carto.com/basemaps/apikey)
 };

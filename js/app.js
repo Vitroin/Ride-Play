@@ -8,6 +8,7 @@ import { DEFAULTS } from '../config.js';
 import { setAwake } from './wakelock.js';
 import { hydrateIcons, setIcon, placeIcon, PLACE_COLORS, turnIcon } from './icons.js';
 import { DEMO, DemoGps, demoSpotify, demoRoute, DEMO_PLACES } from './demo.js';
+import { artPalette } from './artcolor.js';
 import { $, $$, h, haversine, fmtDuration, fmtClock, toast, readJSON, writeJSON } from './util.js';
 
 const spotify = DEMO ? demoSpotify() : realSpotify;
@@ -16,6 +17,7 @@ const AuthError = realSpotify.AuthError;
 // ================================================================ settings
 const settings = {
   imperial: false, mapsMode: 'inapp', voice: true, theme: 'auto', saver: false, diag: false,
+  glass: false, artTint: true, autoDim: true, dimAfter: '60', mapPanel: 'open',
   ...readJSON('md.settings', {}),
 };
 const saveSettings = () => writeJSON('md.settings', settings);
@@ -51,6 +53,7 @@ function show(name) {
   if (name === 'music') musicUI.open();
   if (name === 'settings') renderSettings();
   updateAwake();
+  dimmer.poke();
   music.kick();
   progress.sync();
 }
@@ -74,14 +77,52 @@ mqLight.addEventListener('change', () => applyTheme(true));
 function applySaver() {
   document.body.classList.toggle('saver', settings.saver);
   nav?.setSaver(settings.saver);
+  applyGlass();
 }
+// Liquid Glass: translucent, blurred surfaces. Off in battery saver (blur costs GPU time).
+function applyGlass() { document.body.classList.toggle('glass', settings.glass && !settings.saver); }
 
-/** Screen-on policy: on while riding/navigating; off in Settings or after 5 min parked. */
+/**
+ * Screen-on policy.
+ * Auto-dim on: the screen never switches off while the app is open; it dims instead.
+ * Auto-dim off: on while riding/navigating; off in Settings or after 5 min parked.
+ */
 function updateAwake() {
+  if (settings.autoDim) { setAwake(current && current !== 'login'); return; }
   const parked = Date.now() - gps.lastMoveAt > 5 * 60 * 1000;
   setAwake(navigating || ((current === 'dash' || current === 'maps' || current === 'music') && !parked));
 }
 setInterval(updateAwake, 30000);
+
+// ================================================================ auto-dim
+// A black layer fades in over everything after a quiet spell. On iPhone's OLED screen,
+// darker pixels use less power, and the screen never locks. The first touch only wakes it
+// (the layer catches that tap so it can't press a button by accident).
+const dimmer = {
+  el: null, timer: null, dimmed: false,
+  enabled() { return settings.autoDim && !!current && current !== 'login'; },
+  arm() {
+    clearTimeout(this.timer);
+    if (this.enabled()) this.timer = setTimeout(() => this.dim(), Number(settings.dimAfter || 60) * 1000);
+  },
+  poke() { if (this.dimmed) this.wake(); this.arm(); },
+  dim() {
+    if (!this.enabled() || document.visibilityState !== 'visible') return;
+    this.dimmed = true;
+    document.body.classList.add('dimmed');
+  },
+  wake() {
+    this.dimmed = false;
+    document.body.classList.remove('dimmed');
+    // Keep swallowing taps for a moment so the waking touch doesn't reach the button below.
+    this.el.classList.add('catch');
+    setTimeout(() => this.el.classList.remove('catch'), 400);
+  },
+};
+dimmer.el = $('#dimmer');
+document.addEventListener('pointerdown', () => dimmer.poke(), { capture: true, passive: true });
+document.addEventListener('keydown', () => dimmer.poke(), { capture: true });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') dimmer.poke(); });
 
 // ================================================================ units
 const toUnit = (ms) => ms * (settings.imperial ? 2.236936 : 3.6);
@@ -101,6 +142,7 @@ function shortDist(m) {
 }
 function applyUnits() {
   $$('.speed-unit').forEach((el) => { el.textContent = settings.imperial ? 'mph' : 'km/h'; });
+  shownSpeed = Math.round(toUnit(gps.speed));
   renderGps();
 }
 
@@ -110,8 +152,16 @@ const speedBand = (ms) => {
   return kmh < 50 ? 'var(--lime)' : kmh < 90 ? 'var(--cyan)' : kmh < 130 ? 'var(--orange)' : 'var(--magenta)';
 };
 let lastDestRender = 0;
+// The shown number only changes once the smoothed speed has moved ¾ of a unit away from it,
+// so a steady 80 doesn't flicker 79-80-81 from tiny GPS noise.
+let shownSpeed = 0;
+function displaySpeed(ms) {
+  const v = toUnit(ms);
+  if (ms === 0 || Math.abs(v - shownSpeed) >= 0.75) shownSpeed = Math.round(v);
+  return String(shownSpeed);
+}
 function renderGps() {
-  const s = speedText(gps.speed);
+  const s = displaySpeed(gps.speed);
   $('#speed').textContent = s;
   $('#nav-speed').textContent = s;
   $('#speed').classList.toggle('three', s.length >= 3);
@@ -209,7 +259,7 @@ function renderDestWidget(animate = false) {
   const rows = list.map((p, i) => destRow(p, i, null));
   if (list.length < 2) {
     const chip = h('span', { class: 'chip c-green' }); setIcon(chip, 'plus');
-    rows.push(h('div', { class: 'dest-row' }, h('button', { class: 'dest-main', type: 'button', onclick: () => { show('maps'); setTimeout(() => $('#search-input').focus(), 300); } },
+    rows.push(h('div', { class: 'dest-row' }, h('button', { class: 'dest-main', type: 'button', onclick: () => { settings.mapPanel = 'open'; saveSettings(); show('maps'); setTimeout(() => $('#search-input').focus(), 300); } },
       chip, h('span', { class: 'dest-text' }, h('span', { class: 'dest-name' }, 'Add a favourite'), h('span', { class: 'dest-meta' }, 'Search for Home, University…')))));
   }
   if (animate) cascade(rows);
@@ -281,6 +331,14 @@ $('#btn-voice').addEventListener('click', () => {
 });
 $('#btn-recenter').addEventListener('click', () => nav?.recenter());
 
+// The "Where to?" panel can be tucked away for a full-width map, and comes back as a small pill.
+function setMapPanel(state) {
+  settings.mapPanel = state; saveSettings();
+  if (current === 'maps') setGuideMode(navigating);
+}
+$('#btn-panel-hide').addEventListener('click', () => setMapPanel('hidden'));
+$('#btn-panel-show').addEventListener('click', () => setMapPanel('open'));
+
 function ensureNav() {
   if (nav) return nav;
   nav = new NavSession($('#map'), {
@@ -288,6 +346,7 @@ function ensureNav() {
     onError: (e) => toast(e.message, 4500),
     onArrive: () => {
       navigating = false;
+      dimmer.poke();
       renderNav({ state: 'arrived' });
       setTimeout(() => { if (!navigating) setGuideMode(false); }, 5000);
     },
@@ -299,8 +358,11 @@ function ensureNav() {
 }
 
 function setGuideMode(on) {
+  const hidePanel = settings.mapPanel === 'hidden';
   $('#screen-maps').classList.toggle('browsing', !on);
-  $('#maps-browse').hidden = on;
+  $('#screen-maps').classList.toggle('panel-hidden', !on && hidePanel);
+  $('#maps-browse').hidden = on || hidePanel;
+  $('#btn-panel-show').hidden = on || !hidePanel;
   $('#maps-guide').hidden = !on;
   $('#btn-voice').hidden = !on;
   nav?.resize();
@@ -325,6 +387,7 @@ function renderNav(s) {
   if (s.state === 'error') return setTurn('info', 0, '!', s.message);
   if (s.state === 'arrived') return setTurn('goal', 0, 'Arrived', destName);
   const [icon, rot] = turnIcon(s.type);
+  if (s.toTurn < 250) dimmer.poke();   // brighten the screen for the next turn
   if (s.instruction !== renderNav.last) { renderNav.last = s.instruction; replay($('.turn'), 'bump'); }
   setTurn(icon, rot, shortDist(s.toTurn), s.instruction);
   $('#nav-eta').textContent = fmtClock(new Date(Date.now() + s.remainingTime * 1000));
@@ -400,17 +463,44 @@ function renderMusic(p) {
   $('#btn-shuf').setAttribute('aria-pressed', String(player.shuffle));
   $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
   $('#btn-repeat').setAttribute('aria-label', `Repeat: ${player.repeat}`);
-  setIcon($('#repeat-icon'), player.repeat === 'track' ? 'repeatOne' : 'repeat');
+  renderRepeat();
 
-  const art = pickImage(item?.album?.images || item?.images || [], 300);
+  const images = item?.album?.images || item?.images || [];
+  const art = pickImage(images, 300);
   if (art !== lastArt) {
     lastArt = art;
     $$('[data-music="img"]').forEach((img) => { img.hidden = !art; if (art) img.src = art; else img.removeAttribute('src'); });
+    updateArtTint(images);
   }
   if ((item?.uri || '') !== nowUri) { nowUri = item?.uri || ''; musicUI.markCurrent(); }
   musicUI.markContext();
   progress.paint();
   progress.sync();
+}
+
+function renderRepeat() {
+  $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
+  $('#btn-repeat').setAttribute('aria-label', `Repeat: ${player.repeat}`);
+  setIcon($('#repeat-icon'), player.repeat === 'track' ? 'repeatOne' : 'repeat');
+  $('#repeat-label').textContent = player.repeat === 'track' ? 'Repeat 1' : 'Repeat';
+}
+
+/**
+ * Song colours: the Now Playing background (and the dashboard music card) take two
+ * colours from the album art, like Apple Music. Uses the small 64 px cover, once per song.
+ */
+let tintFor = '';
+async function updateArtTint(images = player.item?.album?.images || player.item?.images || []) {
+  const url = settings.artTint && !settings.saver ? pickImage(images, 60) : '';
+  tintFor = url;
+  const off = () => document.body.classList.remove('art-tint');
+  if (!url) return off();
+  const pal = await artPalette(url);
+  if (tintFor !== url) return;          // the song changed while we were sampling
+  if (!pal) return off();
+  document.documentElement.style.setProperty('--art-a', pal.a);
+  document.documentElement.style.setProperty('--art-b', pal.b);
+  document.body.classList.add('art-tint');
 }
 
 /** Progress bar: estimated locally between polls, ticks once a second only while visible and playing. */
@@ -475,8 +565,7 @@ $('#btn-shuf').addEventListener('click', () => {
 });
 $('#btn-repeat').addEventListener('click', () => {
   player.repeat = { off: 'context', context: 'track', track: 'off' }[player.repeat] || 'off';
-  $('#btn-repeat').setAttribute('aria-pressed', String(player.repeat !== 'off'));
-  setIcon($('#repeat-icon'), player.repeat === 'track' ? 'repeatOne' : 'repeat');
+  renderRepeat();
   toast({ off: 'Repeat off', context: 'Repeat all', track: 'Repeat this song' }[player.repeat], 1200);
   control(() => spotify.setRepeat(player.repeat));
 });
@@ -500,6 +589,7 @@ const musicUI = {
   select(tab, animate = true) {
     this.tab = tab;
     $$('.music-tabs [role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+    $('#music-card').classList.toggle('on-now', tab === 'now');
     for (const t of ['now', 'liked', 'playlists']) $(`#tab-${t}`).hidden = t !== tab;
     if (animate) replay($(`#tab-${tab}`), 'enter-fade');
     if (tab === 'liked') this.openLiked();
@@ -646,6 +736,7 @@ function renderSettings() {
     if (el.classList.contains('switch')) el.setAttribute('aria-checked', String(!!settings[key]));
     else $$('button', el).forEach((b) => b.setAttribute('aria-pressed', String(String(settings[key]) === b.dataset.val)));
   });
+  $('#row-dim-after').hidden = !settings.autoDim;
   $('#spotify-status').textContent = spotify.isLoggedIn() ? (DEMO ? 'Demo mode' : 'Connected') : 'Not connected';
   $('#btn-logout').textContent = spotify.isLoggedIn() ? 'Log out' : 'Log in';
   const k = getKeys();
@@ -656,7 +747,10 @@ function renderSettings() {
 function changeSetting(key, val) {
   settings[key] = val; saveSettings();
   if (key === 'theme') applyTheme(true);
-  if (key === 'saver') { applySaver(); music.kick(); progress.sync(); }
+  if (key === 'saver') { applySaver(); music.kick(); progress.sync(); updateArtTint(); }
+  if (key === 'glass') applyGlass();
+  if (key === 'artTint') updateArtTint();
+  if (key === 'autoDim' || key === 'dimAfter') { updateAwake(); dimmer.arm(); if (!settings.autoDim) dimmer.wake(); }
   if (key === 'imperial') applyUnits();
   if (key === 'voice') applyVoice();
   if (key === 'diag') renderGps();

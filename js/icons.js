@@ -60,6 +60,9 @@ export const ICONS = {
   repeat: S('<path d="M4 11V9a3 3 0 0 1 3-3h12M16 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3"/>'),
   repeatOne: S('<path d="M4 11V9a3 3 0 0 1 3-3h12M16 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3"/><path d="M11.5 10.5l1.5-1v5"/>'),
   goal: S('<path d="M5 21V4"/><path d="M5 4h7v3h7v8h-7v-3H5"/>'),
+  collapse: S('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M16 9.5L13.5 12l2.5 2.5"/>'),
+  drop: S('<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14.5a3 3 0 0 0 3 3"/>'),
+  palette: S('<path d="M12 3a9 9 0 0 0 0 18c1.4 0 2-1 2-2 0-1.5-1-1.8-1-3s1-2 2.5-2H18a3 3 0 0 0 3-3c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10" cy="7" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7" r="1.2" fill="currentColor"/>'),
 };
 
 export const icon = (name) => ICONS[name] || ICONS.pin;

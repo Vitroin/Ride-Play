@@ -4,7 +4,7 @@ const CACHE = 'motodash-v1';
 const SHELL = [
   './', './index.html', './styles.css', './config.js', './manifest.webmanifest',
   './js/app.js', './js/spotify.js', './js/gps.js', './js/nav.js', './js/routing.js', './js/places.js',
-  './js/keys.js', './js/util.js', './js/icons.js', './js/wakelock.js', './js/demo.js',
+  './js/keys.js', './js/util.js', './js/icons.js', './js/wakelock.js', './js/demo.js', './js/artcolor.js',
   './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];

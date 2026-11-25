@@ -62,11 +62,25 @@ export class DemoGps extends EventTarget {
   _emit() { this.dispatchEvent(new Event('update')); }
 }
 
+/** A generated cover in two colours, so demo mode shows the Song colours feature. */
+const COVERS = [['#FF5A1F', '#7A1FA2'], ['#18C8A8', '#0B3D91'], ['#FFD23F', '#E0115F'], ['#4D9DE0', '#1B998B'], ['#F5F5F5', '#C33C54']];
+function demoCover(i) {
+  const [a, b] = COVERS[i % COVERS.length];
+  const c = document.createElement('canvas'); c.width = c.height = 300;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 300, 300); g.addColorStop(0, a); g.addColorStop(1, b);
+  x.fillStyle = g; x.fillRect(0, 0, 300, 300);
+  x.fillStyle = 'rgba(255,255,255,0.85)'; x.beginPath(); x.arc(150, 150, 58, 0, Math.PI * 2); x.fill();
+  x.fillStyle = b; x.beginPath(); x.arc(150, 150, 14, 0, Math.PI * 2); x.fill();
+  return [{ url: c.toDataURL('image/png'), width: 300, height: 300 }];
+}
+
 /** Fake Spotify with the same surface as js/spotify.js. */
 export function demoSpotify() {
+  let cover = 0;
   const state = {
     is_playing: true, progress_ms: 42000, shuffle_state: false, repeat_state: 'off', context: null,
-    item: { uri: 'demo:x', name: 'Demo track', duration_ms: 214000, artists: [{ name: 'Moto Dash' }], album: { name: 'Demo album', images: [] } },
+    item: { uri: 'demo:x', name: 'Demo track', duration_ms: 214000, artists: [{ name: 'Moto Dash' }], album: { name: 'Demo album', images: demoCover(0) } },
   };
   let t0 = Date.now();
   const snapshot = () => {
@@ -79,7 +93,7 @@ export function demoSpotify() {
     handleRedirect: async () => false, redirectUri: () => location.origin + location.pathname,
     getPlayer: async () => snapshot(),
     play: async () => { snapshot(); state.is_playing = true; }, pause: async () => { snapshot(); state.is_playing = false; },
-    next: async () => { state.item = { ...state.item, uri: `demo:n${Date.now()}`, name: `Demo track ${Math.ceil(Math.random() * 9)}` }; state.progress_ms = 0; t0 = Date.now(); },
+    next: async () => { cover += 1; state.item = { ...state.item, uri: `demo:n${Date.now()}`, name: `Demo track ${Math.ceil(Math.random() * 9)}`, album: { name: 'Demo album', images: demoCover(cover) } }; state.progress_ms = 0; t0 = Date.now(); },
     previous: async () => {},
     getLiked: async (offset = 0) => {
       const total = 64;

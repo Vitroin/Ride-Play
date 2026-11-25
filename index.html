@@ -144,11 +144,14 @@
 
       <!-- browse: destinations panel -->
       <div id="maps-browse" class="card dest-panel">
-        <form id="search-form" class="search" role="search">
-          <label for="search-input" class="sr-only">Search a place</label>
-          <span data-icon="search"></span>
-          <input id="search-input" type="search" placeholder="Where to?" autocomplete="off" enterkeyhint="search">
-        </form>
+        <div class="panel-head">
+          <form id="search-form" class="search" role="search">
+            <label for="search-input" class="sr-only">Search a place</label>
+            <span data-icon="search"></span>
+            <input id="search-input" type="search" placeholder="Where to?" autocomplete="off" enterkeyhint="search">
+          </form>
+          <button id="btn-panel-hide" class="btn-round" type="button" aria-label="Hide this panel and show the full map"><span data-icon="collapse"></span></button>
+        </div>
         <div class="panel-body">
           <div id="results-block" hidden>
             <div class="row-between"><span class="eyebrow">RESULTS</span><button id="btn-clear" class="link-btn" type="button">Clear</button></div>
@@ -158,6 +161,9 @@
           <div id="places-list" class="dest-list"></div>
         </div>
       </div>
+
+      <!-- shown instead of the panel when it's hidden -->
+      <button id="btn-panel-show" class="card where-pill" type="button" hidden><span data-icon="search"></span><span>Where to?</span></button>
 
       <!-- guidance -->
       <div id="maps-guide" class="guide" hidden>
@@ -202,6 +208,7 @@
 
     <!-- ============ MUSIC ============ -->
     <section id="screen-music" class="screen music" hidden>
+      <div id="music-card" class="card music-card">
       <div class="music-tabs" role="tablist">
         <button role="tab" type="button" data-tab="now" aria-selected="true">Now Playing</button>
         <button role="tab" type="button" data-tab="liked" aria-selected="false"><span data-icon="heart"></span>Liked Songs</button>
@@ -221,11 +228,13 @@
             <div class="seek-times"><span data-music="elapsed">0:00</span><span data-music="remaining">-0:00</span></div>
           </div>
           <div class="now-controls">
-            <button id="btn-shuf" class="ctl-flat" type="button" aria-label="Shuffle" aria-pressed="false"><span data-icon="shuffle"></span></button>
-            <button class="ctl lg" type="button" data-action="prev" aria-label="Previous track"><span data-icon="prev"></span></button>
-            <button class="ctl ctl-main xl" type="button" data-action="toggle" aria-label="Play or pause"><span class="i-play" data-icon="play"></span><span class="i-pause" data-icon="pause"></span></button>
-            <button class="ctl lg" type="button" data-action="next" aria-label="Next track"><span data-icon="next"></span></button>
-            <button id="btn-repeat" class="ctl-flat" type="button" aria-label="Repeat: off" aria-pressed="false"><span id="repeat-icon" data-icon="repeat"></span></button>
+            <button class="glyph" type="button" data-action="prev" aria-label="Previous track"><span data-icon="prev"></span></button>
+            <button class="glyph glyph-main" type="button" data-action="toggle" aria-label="Play or pause"><span class="i-play" data-icon="play"></span><span class="i-pause" data-icon="pause"></span></button>
+            <button class="glyph" type="button" data-action="next" aria-label="Next track"><span data-icon="next"></span></button>
+          </div>
+          <div class="now-modes">
+            <button id="btn-shuf" class="mode-btn" type="button" aria-label="Shuffle" aria-pressed="false"><span data-icon="shuffle"></span><span>Shuffle</span></button>
+            <button id="btn-repeat" class="mode-btn" type="button" aria-label="Repeat: off" aria-pressed="false"><span id="repeat-icon" data-icon="repeat"></span><span id="repeat-label">Repeat</span></button>
           </div>
         </div>
       </div>
@@ -244,39 +253,60 @@
       <div id="tab-playlists" class="tab-panel list-tab" role="tabpanel" hidden>
         <div id="playlist-grid" class="playlist-grid"></div>
       </div>
+      </div>
     </section>
 
     <!-- ============ SETTINGS ============ -->
     <section id="screen-settings" class="screen settings" hidden>
       <div class="settings-grid">
-        <div class="card group">
-          <div class="set-row"><span class="app-icon xs ai-dash" data-icon="sun"></span><span class="set-label">Appearance</span>
-            <div class="seg" role="group" aria-label="Appearance" data-setting="theme">
-              <button type="button" data-val="auto">Auto</button><button type="button" data-val="dark">Dark</button><button type="button" data-val="light">Light</button>
-            </div></div>
-          <div class="set-row"><span class="app-icon xs ai-green" data-icon="leaf"></span><span class="set-label">Battery saver<small>Slower music updates, lighter map, no animations</small></span>
-            <button class="switch" type="button" role="switch" aria-checked="false" data-setting="saver" aria-label="Battery saver"><span class="knob"></span></button></div>
-          <div class="set-row"><span class="app-icon xs ai-orange" data-icon="gauge"></span><span class="set-label">Speed units</span>
-            <div class="seg" role="group" aria-label="Speed units" data-setting="imperial">
-              <button type="button" data-val="false">km/h</button><button type="button" data-val="true">mph</button>
-            </div></div>
-          <div class="set-row"><span class="app-icon xs ai-maps" data-icon="volume"></span><span class="set-label">Voice guidance</span>
-            <button class="switch" type="button" role="switch" aria-checked="true" data-setting="voice" aria-label="Voice guidance"><span class="knob"></span></button></div>
+        <div class="set-section">
+          <div class="section-title">Display</div>
+          <div class="card group">
+            <div class="set-row"><span class="app-icon xs ai-dash" data-icon="sun"></span><span class="set-label">Appearance</span>
+              <div class="seg" role="group" aria-label="Appearance" data-setting="theme">
+                <button type="button" data-val="auto">Auto</button><button type="button" data-val="dark">Dark</button><button type="button" data-val="light">Light</button>
+              </div></div>
+            <div class="set-row"><span class="app-icon xs ai-glass" data-icon="drop"></span><span class="set-label">Liquid Glass<small>Apple-style see-through look · uses more battery</small></span>
+              <button class="switch" type="button" role="switch" aria-checked="false" data-setting="glass" aria-label="Liquid Glass"><span class="knob"></span></button></div>
+            <div class="set-row"><span class="app-icon xs ai-music" data-icon="palette"></span><span class="set-label">Song colours<small>Now Playing takes its colours from the album art</small></span>
+              <button class="switch" type="button" role="switch" aria-checked="true" data-setting="artTint" aria-label="Song colours"><span class="knob"></span></button></div>
+            <div class="set-row"><span class="app-icon xs ai-dim" data-icon="moon"></span><span class="set-label">Auto-dim<small>Screen stays on, dims when idle, a touch brings it back</small></span>
+              <button class="switch" type="button" role="switch" aria-checked="true" data-setting="autoDim" aria-label="Auto-dim"><span class="knob"></span></button></div>
+            <div class="set-row" id="row-dim-after"><span class="app-icon xs ai-dim" data-icon="timer"></span><span class="set-label">Dim after</span>
+              <div class="seg" role="group" aria-label="Dim after" data-setting="dimAfter">
+                <button type="button" data-val="30">30 s</button><button type="button" data-val="60">1 min</button><button type="button" data-val="120">2 min</button>
+              </div></div>
+            <div class="set-row"><span class="app-icon xs ai-green" data-icon="leaf"></span><span class="set-label">Battery saver<small>Slower music updates, no animations or glass</small></span>
+              <button class="switch" type="button" role="switch" aria-checked="false" data-setting="saver" aria-label="Battery saver"><span class="knob"></span></button></div>
+          </div>
         </div>
 
-        <div class="card group">
-          <div class="set-row"><span class="app-icon xs ai-maps" data-icon="map"></span><span class="set-label">Navigate with</span>
-            <div class="seg" role="group" aria-label="Navigate with" data-setting="mapsMode">
-              <button type="button" data-val="inapp">Moto Dash</button><button type="button" data-val="apple">Apple Maps</button>
-            </div></div>
-          <div class="set-row"><span class="app-icon xs ai-yellow" data-icon="satellite"></span><span class="set-label">GPS diagnostics<small>Or hold the speed dial</small></span>
-            <button class="switch" type="button" role="switch" aria-checked="false" data-setting="diag" aria-label="GPS diagnostics"><span class="knob"></span></button></div>
-          <div class="set-row"><span class="app-icon xs ai-music" data-icon="music"></span><span class="set-label">Spotify<small id="spotify-status">Connected</small></span>
-            <button id="btn-logout" class="btn-pill" type="button">Log out</button></div>
-          <div class="set-row"><span class="app-icon xs ai-settings" data-icon="key"></span><span class="set-label">API keys<small id="keys-status">—</small></span>
-            <button class="btn-pill" type="button" data-go="login">Edit</button></div>
-          <div class="set-row"><span class="app-icon xs ai-red" data-icon="flag"></span><span class="set-label">Trip</span>
-            <button id="btn-reset-trip" class="btn-pill" type="button">Reset trip</button></div>
+        <div class="set-section">
+          <div class="section-title">Riding</div>
+          <div class="card group">
+            <div class="set-row"><span class="app-icon xs ai-orange" data-icon="gauge"></span><span class="set-label">Speed units</span>
+              <div class="seg" role="group" aria-label="Speed units" data-setting="imperial">
+                <button type="button" data-val="false">km/h</button><button type="button" data-val="true">mph</button>
+              </div></div>
+            <div class="set-row"><span class="app-icon xs ai-maps" data-icon="volume"></span><span class="set-label">Voice guidance</span>
+              <button class="switch" type="button" role="switch" aria-checked="true" data-setting="voice" aria-label="Voice guidance"><span class="knob"></span></button></div>
+            <div class="set-row"><span class="app-icon xs ai-maps" data-icon="map"></span><span class="set-label">Navigate with</span>
+              <div class="seg" role="group" aria-label="Navigate with" data-setting="mapsMode">
+                <button type="button" data-val="inapp">Moto Dash</button><button type="button" data-val="apple">Apple Maps</button>
+              </div></div>
+            <div class="set-row"><span class="app-icon xs ai-yellow" data-icon="satellite"></span><span class="set-label">GPS diagnostics<small>Or hold the speed dial</small></span>
+              <button class="switch" type="button" role="switch" aria-checked="false" data-setting="diag" aria-label="GPS diagnostics"><span class="knob"></span></button></div>
+            <div class="set-row"><span class="app-icon xs ai-red" data-icon="flag"></span><span class="set-label">Trip</span>
+              <button id="btn-reset-trip" class="btn-pill" type="button">Reset trip</button></div>
+          </div>
+
+          <div class="section-title">Accounts</div>
+          <div class="card group">
+            <div class="set-row"><span class="app-icon xs ai-music" data-icon="music"></span><span class="set-label">Spotify<small id="spotify-status">Connected</small></span>
+              <button id="btn-logout" class="btn-pill" type="button">Log out</button></div>
+            <div class="set-row"><span class="app-icon xs ai-settings" data-icon="key"></span><span class="set-label">API keys<small id="keys-status">—</small></span>
+              <button class="btn-pill" type="button" data-go="login">Edit</button></div>
+          </div>
         </div>
       </div>
     </section>
@@ -284,6 +314,7 @@
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="dimmer" class="dimmer" aria-hidden="true"></div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script type="module" src="js/app.js"></script>
