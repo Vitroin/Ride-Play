@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07070D">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Moto Dash">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+<title>Moto Dash</title>
+</head>
+<body data-playing="false">
+<div id="app">
+
+  <!-- ============ LOGIN / SETUP ============ -->
+  <section id="screen-login" class="screen login" hidden>
+    <div class="login-hero">
+      <div class="brand"><span class="brand-mark" data-icon="moto"></span><span>Moto Dash</span></div>
+      <div>
+        <h1>Ride. Glance.<br><span class="hl">Go.</span></h1>
+        <p class="muted">Speed, turn-by-turn navigation and your music on the handlebars. Connect Spotify once to get started.</p>
+      </div>
+      <div class="feature-row">
+        <span class="feature"><span class="chip c-lime" data-icon="gauge"></span>GPS speed</span>
+        <span class="feature"><span class="chip c-cyan" data-icon="route"></span>Navigation</span>
+        <span class="feature"><span class="chip c-magenta" data-icon="music"></span>Spotify</span>
+      </div>
+    </div>
+
+    <div class="card login-card">
+      <div>
+        <div class="eyebrow">CONNECT</div>
+        <h2>Your Spotify account</h2>
+      </div>
+      <ul class="checks">
+        <li><span class="ic-ok" data-icon="check"></span>See what's playing, play, pause and skip</li>
+        <li><span class="ic-ok" data-icon="check"></span>You sign in on Spotify's own page. This app never sees your password</li>
+        <li><span class="ic-info" data-icon="info"></span>Playback control needs Spotify Premium</li>
+      </ul>
+
+
+      <p id="login-error" class="error" role="alert" hidden></p>
+      <div class="login-actions">
+        <button id="btn-login" class="btn-primary" type="button"><span data-icon="music"></span><span id="btn-login-label">Log in with Spotify</span></button>
+      </div>
+
+      <details id="setup" class="setup">
+        <summary><span data-icon="key"></span>Setup &amp; API keys</summary>
+        <label>Spotify Client ID
+          <input id="key-spotify" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="From developer.spotify.com">
+        </label>
+        <label>OpenRouteService API key
+          <input id="key-ors" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="From openrouteservice.org">
+        </label>
+        <p class="tiny muted">Redirect URI to register in Spotify:<br><code id="redirect-uri"></code></p>
+        <button id="btn-save-keys" class="btn-secondary" type="button">Save keys</button>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="screen-dash" class="screen dash" hidden>
+    <button id="speed-card" class="card speed-card" type="button" aria-label="Speed. Tap to switch units">
+      <div class="row-between">
+        <span class="eyebrow"><span data-icon="gauge"></span>SPEED</span>
+        <span id="gps-pill" class="pill pill-wait"><span data-icon="satellite"></span><span id="gps-text">Finding GPS</span></span>
+      </div>
+      <div class="gauge" aria-hidden="true">
+        <svg viewBox="0 0 200 200">
+          <circle class="gauge-track" cx="100" cy="100" r="84"></circle>
+          <circle id="gauge-fill" class="gauge-fill" cx="100" cy="100" r="84"></circle>
+        </svg>
+        <div class="gauge-center">
+          <div id="speed" class="gauge-num">0</div>
+          <div class="gauge-unit"><span class="speed-unit">km/h</span></div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat-box"><span class="stat-ic c-cyan" data-icon="route"></span><div><span id="stat-dist" class="stat">0.0</span><span id="stat-dist-unit" class="stat-label">km</span></div></div>
+        <div class="stat-box"><span class="stat-ic c-yellow" data-icon="timer"></span><div><span id="stat-time" class="stat">0:00</span><span class="stat-label">time</span></div></div>
+        <div class="stat-box"><span class="stat-ic c-lime" data-icon="avg"></span><div><span id="stat-avg" class="stat">0</span><span class="stat-label">avg</span></div></div>
+        <div class="stat-box"><span class="stat-ic c-orange" data-icon="peak"></span><div><span id="stat-max" class="stat">0</span><span class="stat-label">max</span></div></div>
+      </div>
+    </button>
+
+    <div class="dash-right">
+      <header class="dash-top">
+        <span class="clock"><span data-icon="clock"></span><span id="clock">--:--</span></span>
+        <span class="spacer"></span>
+        <button id="btn-theme" class="btn-round sm" type="button" aria-label="Theme: auto"><span id="theme-icon" data-icon="auto"></span></button>
+        <button id="btn-saver" class="btn-round sm" type="button" aria-label="Battery saver" aria-pressed="false"><span data-icon="leaf"></span></button>
+        <button class="btn-round sm" type="button" data-go="places" aria-label="Places and settings"><span data-icon="settings"></span></button>
+        <button id="btn-end" class="btn-outline" type="button"><span data-icon="flag"></span><span id="btn-end-label">End ride</span></button>
+      </header>
+
+      <div id="place-tiles" class="tiles"></div>
+
+      <div class="card music">
+        <div class="art"><img data-music="img" alt="" hidden><span class="art-ph" data-icon="music"></span></div>
+        <div class="music-info">
+          <div class="eyebrow"><span class="live-dot"></span><span data-music="status">CONNECTING</span></div>
+          <div class="track" data-music="title">—</div>
+          <div class="artist" data-music="artist">&nbsp;</div>
+        </div>
+        <div class="controls">
+          <button class="ctl" type="button" data-action="prev" aria-label="Previous track"><span data-icon="prev"></span></button>
+          <button class="ctl ctl-main" type="button" data-action="toggle" aria-label="Play or pause"><span class="i-play" data-icon="play"></span><span class="i-pause" data-icon="pause"></span></button>
+          <button class="ctl" type="button" data-action="next" aria-label="Next track"><span data-icon="next"></span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLACES ============ -->
+  <section id="screen-places" class="screen places" hidden>
+    <div class="places-top">
+      <button class="btn-round" type="button" data-go="dash" aria-label="Back to dashboard"><span data-icon="back"></span></button>
+      <form id="search-form" class="search" role="search">
+        <label for="search-input" class="sr-only">Search a place</label>
+        <span data-icon="search"></span>
+        <input id="search-input" type="search" placeholder="Search a place or address" autocomplete="off" enterkeyhint="search">
+      </form>
+      <div class="seg" role="group" aria-label="Navigate with">
+        <button type="button" data-mode="inapp" aria-pressed="true"><span data-icon="route"></span>In app</button>
+        <button type="button" data-mode="apple" aria-pressed="false"><span data-icon="external"></span>Apple Maps</button>
+      </div>
+    </div>
+    <div class="places-body">
+      <div id="results-block" hidden>
+        <div class="row-between"><div class="eyebrow"><span data-icon="search"></span>RESULTS</div><button id="btn-clear" class="link-btn" type="button">Clear</button></div>
+        <div id="results-list" class="places-grid"></div>
+      </div>
+      <div class="eyebrow"><span data-icon="star"></span>SAVED PLACES</div>
+      <div id="places-list" class="places-grid"></div>
+      <div class="places-foot">
+        <button class="link-btn" type="button" data-go="login"><span data-icon="key"></span>Setup &amp; keys</button>
+        <button id="btn-logout" class="link-btn" type="button"><span data-icon="logout"></span>Log out of Spotify</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NAVIGATION ============ -->
+  <section id="screen-nav" class="screen nav" hidden>
+    <div id="map" class="map"></div>
+
+    <div class="card turn">
+      <span class="turn-icon"><span id="turn-arrow" data-icon="arrow"></span></span>
+      <div class="turn-body">
+        <div id="turn-dist" class="turn-dist">—</div>
+        <div id="turn-text" class="turn-text">Getting your location…</div>
+      </div>
+    </div>
+
+    <div class="card mini-music">
+      <span class="mini-art"><img data-music="img" alt="" hidden><span class="art-ph" data-icon="music"></span></span>
+      <div class="mini-info"><div class="track" data-music="title">—</div><div class="artist" data-music="artist">&nbsp;</div></div>
+      <button class="ctl ctl-main sm" type="button" data-action="toggle" aria-label="Play or pause"><span class="i-play" data-icon="play"></span><span class="i-pause" data-icon="pause"></span></button>
+      <button class="ctl sm" type="button" data-action="next" aria-label="Next track"><span data-icon="next"></span></button>
+    </div>
+
+    <div class="speed-bubble" aria-label="Speed">
+      <div id="nav-speed" class="bubble-num">0</div>
+      <div class="bubble-unit speed-unit">km/h</div>
+    </div>
+
+    <div class="nav-side">
+      <button id="btn-voice" class="btn-round" type="button" aria-label="Voice guidance" aria-pressed="true"><span id="voice-icon" data-icon="volume"></span></button>
+      <button id="btn-recenter" class="btn-round" type="button" aria-label="Recenter map"><span data-icon="crosshair"></span></button>
+    </div>
+
+    <div class="card nav-bar">
+      <div class="nav-stat"><span class="stat-ic c-cyan" data-icon="clock"></span><div><span id="nav-eta" class="stat">--:--</span><span class="stat-label">arrival</span></div></div>
+      <div class="nav-stat"><span class="stat-ic c-yellow" data-icon="timer"></span><div><span id="nav-time" class="stat">–</span><span id="nav-dest" class="stat-label">to —</span></div></div>
+      <div class="nav-stat"><span class="stat-ic c-lime" data-icon="route"></span><div><span id="nav-dist" class="stat">–</span><span class="stat-label">left</span></div></div>
+      <span class="spacer"></span>
+      <button id="btn-nav-end" class="btn-danger" type="button"><span data-icon="close"></span>End</button>
+    </div>
+  </section>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

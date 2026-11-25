@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+node_modules/
+_site/
+*.zip
+# keep real keys out of git if you ever make a local override
+config.local.js
