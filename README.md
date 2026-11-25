@@ -13,7 +13,7 @@ You need **Git** and the **GitHub CLI** (`gh`) installed. Then, in this folder, 
 - **Mac / Linux:** `./setup-github.sh`
 - **Windows:** `powershell -ExecutionPolicy Bypass -File .\setup-github.ps1`
 
-The script signs you in to GitHub (in the browser), creates a public `ride-play` repo, pushes the code and turns on GitHub Pages. Your app will be at `https://<username>.github.io/moto-dash/`.
+The script signs you in to GitHub (in the browser), creates a public `ride-play` repo, pushes the code and turns on GitHub Pages. Your app will be at `https://<username>.github.io/ride-play/` (the address matches the repo name, including capital letters).
 
 From then on, every push to `main` redeploys automatically (`.github/workflows/deploy.yml`), and phones get the new version the next time they open the app.
 
