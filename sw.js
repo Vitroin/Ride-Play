@@ -1,5 +1,5 @@
 // App-shell cache so the dashboard opens instantly and works with bad signal.
-// API calls (Spotify, OpenRouteService) and map tiles are never cached here.
+// API calls (Spotify, routing, search) and map tiles are never cached here.
 const CACHE = 'motodash-v1';
 const SHELL = [
   './', './index.html', './styles.css', './config.js', './manifest.webmanifest',

@@ -649,8 +649,9 @@ function renderSettings() {
   $('#spotify-status').textContent = spotify.isLoggedIn() ? (DEMO ? 'Demo mode' : 'Connected') : 'Not connected';
   $('#btn-logout').textContent = spotify.isLoggedIn() ? 'Log out' : 'Log in';
   const k = getKeys();
-  const built = DEFAULTS.SPOTIFY_CLIENT_ID && DEFAULTS.ORS_API_KEY;
-  $('#keys-status').textContent = built ? 'Built in from GitHub' : k.spotifyClientId && k.orsKey ? 'Saved on this phone' : 'Missing — tap Edit';
+  // Only Spotify needs a key. Maps work without one (free routing); an ORS key is optional.
+  const built = !!DEFAULTS.SPOTIFY_CLIENT_ID;
+  $('#keys-status').textContent = built ? 'Built in from GitHub' : k.spotifyClientId ? 'Saved on this phone' : 'Missing — tap Edit';
 }
 function changeSetting(key, val) {
   settings[key] = val; saveSettings();
@@ -682,8 +683,8 @@ function renderLogin() {
   $('#key-spotify').value = k.spotifyClientId;
   $('#key-ors').value = k.orsKey;
   $('#redirect-uri').textContent = spotify.redirectUri();
-  const built = DEFAULTS.SPOTIFY_CLIENT_ID && DEFAULTS.ORS_API_KEY;
-  $('#keys-badge').textContent = built ? '✓ built in' : k.spotifyClientId && k.orsKey ? '✓ saved' : '';
+  const built = !!DEFAULTS.SPOTIFY_CLIENT_ID;
+  $('#keys-badge').textContent = built ? '✓ built in' : k.spotifyClientId ? '✓ saved' : '';
   if (!k.spotifyClientId) $('#setup').open = true;
   $('#btn-login-label').textContent = spotify.isLoggedIn() ? 'Continue' : 'Log in with Spotify';
 }

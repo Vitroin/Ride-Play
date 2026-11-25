@@ -30,9 +30,11 @@ From then on, every push to `main` redeploys automatically (`.github/workflows/d
 
 A new Spotify app starts in development mode. That's fine for personal use: your own account works. Anyone else has to be added under **User Management**.
 
-## 3. OpenRouteService key (routing and search)
+## 3. Maps: no key needed
 
-Sign up at https://openrouteservice.org/dev → create a token. The free plan's daily limit is far more than one rider will use.
+Search and turn-by-turn routing work out of the box with free public services: **Valhalla** (FOSSGIS server, with a real motorcycle profile) for routes and **Photon** (komoot) for place search. They're fair-use servers, about one request per second, which is plenty for one rider.
+
+**Optional:** if you add an OpenRouteService key (sign up via openrouteservice.org), the app uses ORS first and falls back to the free services if ORS fails.
 
 ## 4. On your iPhone
 
@@ -64,7 +66,7 @@ Add them as GitHub repository secrets. Each deploy builds them into the app:
 
 ```
 gh secret set SPOTIFY_CLIENT_ID
-gh secret set ORS_API_KEY
+gh secret set ORS_API_KEY        # optional
 gh workflow run deploy.yml
 ```
 
@@ -89,7 +91,7 @@ The screen plus GPS will still use battery on long rides. **A USB charger on the
 
 - **Vibration can damage iPhone cameras.** Apple warns that high-power motorcycle engines can damage the iPhone camera's optical image stabilisation and autofocus. Use a mount with a vibration dampener.
 - **Voice guidance** plays through whatever audio output is connected, including a Bluetooth helmet headset. Prompts come at about 400 m and 80 m before each turn.
-- **Routing uses the car road profile.** OpenRouteService has no motorcycle profile, and the car profile follows the roads motorbikes use.
+- **Routing uses Valhalla's motorcycle profile** by default. If you add an OpenRouteService key, ORS routes with its car profile instead (it has no motorcycle profile), which follows the same roads.
 - Navigate hands-free: set the destination before you ride.
 
 ## How speed is measured
@@ -107,7 +109,7 @@ You need to see over 5 km/h twice in a row to count as moving, and fall below ab
 - Location stops when the screen locks or you switch apps. Keep Moto Dash on screen while riding.
 - If the screen still dims, set **Settings → Display & Brightness → Auto-Lock → Never** for rides.
 - Music actually plays in the Spotify app. Moto Dash is a remote control, and Spotify requires **Premium** for that.
-- Map © OpenStreetMap contributors, tiles © CARTO (free for light personal use).
+- Map © OpenStreetMap contributors, tiles © CARTO (free for light personal use). Routing by Valhalla on the FOSSGIS server, search by Photon (komoot).
 
 ## Files
 
@@ -117,7 +119,7 @@ config.js                 optional hard-coded keys
 js/app.js                 wiring, screens, settings, battery policy
 js/gps.js                 speed, distance, ride time, max speed
 js/nav.js                 Leaflet map, route matching, rerouting, voice
-js/routing.js             OpenRouteService search + directions
+js/routing.js             search + directions (Valhalla/Photon, optional ORS)
 js/spotify.js             PKCE login, token refresh, playback
 js/demo.js                ?demo mode
 sw.js, manifest.webmanifest, icons/   PWA install + offline shell
