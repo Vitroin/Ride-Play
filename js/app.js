@@ -108,7 +108,20 @@ function applyUnits() {
   $$('.speed-unit').forEach((el) => { el.textContent = settings.imperial ? 'mph' : 'km/h'; });
   renderGps();
 }
+// Long-press the speed dial: toggle GPS diagnostics. Short tap: switch units.
+let pressTimer = null, longPressed = false;
+$('#speed-card').addEventListener('pointerdown', () => {
+  longPressed = false;
+  pressTimer = setTimeout(() => {
+    longPressed = true;
+    settings.diag = !settings.diag; saveSettings(); renderGps();
+    toast(settings.diag ? 'GPS diagnostics on' : 'GPS diagnostics off', 1400);
+  }, 700);
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => $('#speed-card').addEventListener(ev, () => clearTimeout(pressTimer)));
+$('#speed-card').addEventListener('contextmenu', (e) => e.preventDefault());
 $('#speed-card').addEventListener('click', () => {
+  if (longPressed) { longPressed = false; return; }
   settings.imperial = !settings.imperial;
   saveSettings(); applyUnits(); renderTiles();
 });
@@ -140,7 +153,14 @@ function renderGps() {
     off: ['pill-off', 'Location off'], unsupported: ['pill-off', 'No GPS'],
   }[gps.status] || ['pill-wait', 'GPS'];
   pill.className = `pill ${cls}`;
-  $('#gps-text').textContent = text;
+  $('#gps-text').textContent = gps.status === 'ok' && gps.accuracy != null ? `GPS ±${Math.round(gps.accuracy)} m` : text;
+
+  const diag = $('#gps-diag');
+  diag.hidden = !settings.diag;
+  if (settings.diag) {
+    const src = { gps: 'GPS speed', position: 'From position', none: 'No speed signal' }[gps.source] || 'Demo';
+    diag.textContent = `${src} · raw ${speedText(gps.rawSpeed || 0)} · ${gps.moving === false ? 'stopped' : 'moving'}`;
+  }
 
   if (current === 'dash' && Date.now() - lastTileRender > 15000) { lastTileRender = Date.now(); renderTiles(); }
 }

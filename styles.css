@@ -64,6 +64,7 @@ body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; /* no iOS long-press menu */
   -webkit-text-size-adjust: 100%;
 }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -241,6 +242,9 @@ body[data-playing="true"] .i-play { display: none !important; }
 .song-eq { color: var(--magenta); font-size: 16px; }
 .liked-more { grid-column: 1 / -1; height: 4px; }
 .liked-msg { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--muted); font-size: 15px; padding: 16px; border: 1px dashed var(--line); border-radius: 18px; }
+
+/* GPS diagnostics (long-press the speed dial) */
+.gps-diag { margin-top: 2cqh; font-size: 5.5cqh; font-weight: 600; color: var(--yellow); text-align: center; line-height: 1.3; font-variant-numeric: tabular-nums; }
 
 /* ---------- places ---------- */
 .places { display: flex; flex-direction: column; gap: 10px; }

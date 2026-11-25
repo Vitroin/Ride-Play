@@ -47,6 +47,7 @@ export class DemoGps extends EventTarget {
     this.timer = setInterval(() => {
       this.t += 1;
       this.speed = (70 + 40 * Math.sin(this.t / 9)) / 3.6;
+      this.rawSpeed = this.speed; this.source = 'gps'; this.moving = true;
       this.s = (this.s + this.speed) % this.cum[this.cum.length - 1];
       let i = this.cum.findIndex((c) => c > this.s) - 1;
       if (i < 0) i = 0;

@@ -72,6 +72,16 @@ The screen plus GPS will still use battery on long rides. **A USB charger on the
 - **Routing uses the car road profile.** OpenRouteService has no motorcycle profile, and the car profile follows the roads motorbikes use.
 - Navigate hands-free: set the destination before you ride.
 
+## How speed is measured
+
+Speed comes from the iPhone's GPS **Doppler** reading, which is measured from the satellite signal itself, so position jumps and a vibrating or shaking phone don't affect it.
+
+If the phone gives no Doppler speed (usually indoors, where it locates you by Wi‑Fi), the app estimates speed from your position only when the fixes are precise (±20 m or better) and you've clearly moved further than the GPS error, over 3–10 s.
+
+You need to see over 5 km/h twice in a row to count as moving, and fall below about 3 km/h to count as stopped. Distance is speed × time while moving, and top speed has to hold for two readings in a row.
+
+**Check it yourself:** the GPS badge shows accuracy (e.g. `GPS ±5 m`). **Long-press the speed dial** for a diagnostics line: the speed source, the raw reading, and moving/stopped. GPS needs open sky; indoors you'll mostly see 0.
+
 ## Known iOS limits
 
 - Location stops when the screen locks or you switch apps. Keep Moto Dash on screen while riding.
