@@ -71,6 +71,15 @@ export function demoSpotify() {
     play: async () => { state.is_playing = true; }, pause: async () => { state.is_playing = false; },
     next: async () => { state.item = { ...state.item, name: `Demo track ${Math.ceil(Math.random() * 9)}` }; },
     previous: async () => {},
+    getLiked: async (offset = 0) => {
+      const total = 64;
+      const items = Array.from({ length: Math.max(0, Math.min(50, total - offset)) }, (_, i) => ({
+        track: { uri: `demo:${offset + i}`, name: `Demo song ${offset + i + 1}`, duration_ms: 150000 + ((offset + i) * 7919) % 120000,
+          artists: [{ name: ['Moto Dash', 'Night Riders', 'Open Road'][(offset + i) % 3] }], album: { images: [] } },
+      }));
+      return { items, total, next: offset + 50 < total ? 'more' : null };
+    },
+    playTracks: async (uris) => { state.is_playing = true; state.item = { ...state.item, uri: uris[0], name: `Demo song ${Number(uris[0].split(':')[1]) + 1}` }; },
     AuthError: class extends Error {},
   };
 }

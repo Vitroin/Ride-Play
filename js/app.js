@@ -22,14 +22,23 @@ let navigating = false;
 let current = null;
 
 // ---------------------------------------------------------------- screens
-const SCREENS = ['login', 'dash', 'places', 'nav'];
+const SCREENS = ['login', 'dash', 'places', 'music', 'nav'];
+const DEPTH = { login: 0, dash: 1, places: 2, music: 2, nav: 3 };
+/** Re-trigger a one-shot CSS animation class. */
+export function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 function show(name) {
+  const prev = current;
   for (const s of SCREENS) $(`#screen-${s}`).hidden = s !== name;
+  const el = $(`#screen-${name}`);
+  el.classList.remove('enter-fwd', 'enter-back', 'enter-fade');
+  if (prev && prev !== name) replay(el, DEPTH[name] >= DEPTH[prev] ? 'enter-fwd' : 'enter-back');
+  else if (!prev) replay(el, 'enter-fade');
   current = name;
   if (name === 'login') renderLogin();
   if (name === 'places') renderPlaces();
-  if (name === 'dash') renderTiles();
+  if (name === 'dash') renderTiles(prev !== 'dash');
   if (name === 'nav') nav?.resize();
+  if (name === 'music') liked.open();
   updateAwake();
   music.kick();
 }
@@ -52,7 +61,9 @@ function applyTheme() {
 mqLight.addEventListener('change', applyTheme);
 $('#btn-theme').addEventListener('click', () => {
   settings.theme = { auto: 'dark', dark: 'light', light: 'auto' }[settings.theme];
+  document.documentElement.classList.add('theming');
   saveSettings(); applyTheme();
+  setTimeout(() => document.documentElement.classList.remove('theming'), 400);
   toast(`Theme: ${settings.theme === 'auto' ? 'Auto (follows iPhone)' : settings.theme === 'dark' ? 'Dark' : 'Light'}`, 1600);
 });
 const accent = () => getComputedStyle(document.documentElement).getPropertyValue('--orange').trim() || '#FF5A1F';
@@ -75,7 +86,7 @@ $('#btn-saver').addEventListener('click', () => {
  */
 function updateAwake() {
   const parked = Date.now() - gps.lastMoveAt > 5 * 60 * 1000;
-  setAwake(current === 'nav' || (current === 'dash' && !parked));
+  setAwake(current === 'nav' || ((current === 'dash' || current === 'music') && !parked));
 }
 setInterval(updateAwake, 30000);
 
@@ -167,7 +178,7 @@ function awayText(p) {
   return gps.position ? `${shortDist(haversine(gps.position, p))} away` : 'Tap to navigate';
 }
 
-function renderTiles() {
+function renderTiles(animate = false) {
   const list = places.getPlaces().slice(0, 2);
   const box = $('#place-tiles');
   const tiles = list.map((p, i) => h('button', { class: 'tile', type: 'button', onclick: () => startNavigation(p) },
@@ -180,6 +191,7 @@ function renderTiles() {
   const chip = h('span', { class: 'chip c-cyan' }); setIcon(chip, 'search');
   tiles.push(h('button', { class: 'tile ghost', type: 'button', onclick: () => show('places') },
     chip, h('span', {}, h('div', { class: 'tile-name' }, 'More places'), h('div', { class: 'tile-sub' }, 'Saved · search'))));
+  if (animate) tiles.forEach((t, i) => { t.classList.add('anim-in'); t.style.setProperty('--i', i); });
   box.replaceChildren(...tiles);
 }
 
@@ -201,6 +213,7 @@ function renderPlaces() {
     setIcon(del, 'trash');
     return placeRow(p, i, del);
   });
+  rows.forEach((r, i) => { r.classList.add('anim-in'); r.style.setProperty('--i', Math.min(i, 10)); });
   $('#places-list').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'No saved places yet. Search above and tap + to save one. Name it “Home” or “University” to get the matching icon.')]));
 }
 
@@ -225,7 +238,9 @@ $('#search-form').addEventListener('submit', async (e) => {
         toast('Saved', 1200); renderPlaces();
       } });
       setIcon(save, 'plus');
-      return placeRow(r, i, save);
+      const row = placeRow(r, i, save);
+      row.classList.add('anim-in'); row.style.setProperty('--i', Math.min(i, 10));
+      return row;
     });
     $('#results-list').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'Nothing found. Try adding the city name.')]));
   } catch (err) {
@@ -283,6 +298,7 @@ function renderNav(s) {
   if (s.state === 'error') return setTurn('info', 0, '!', s.message);
   if (s.state === 'arrived') return setTurn('goal', 0, 'Arrived', destName);
   const [icon, rot] = turnIcon(s.type);
+  if (s.instruction !== renderNav.last) { renderNav.last = s.instruction; replay($('.turn'), 'bump'); }
   setTurn(icon, rot, shortDist(s.toTurn), s.instruction);
   $('#nav-eta').textContent = fmtClock(new Date(Date.now() + s.remainingTime * 1000));
   $('#nav-time').textContent = fmtMinutes(s.remainingTime);
@@ -326,8 +342,15 @@ document.addEventListener('pointerdown', speechUnlock, { once: true, passive: tr
 // ---------------------------------------------------------------- music
 function setPlaying(on) { document.body.dataset.playing = String(!!on); }
 let lastArt = '';
+let nowUri = '';
 function renderMusic(p) {
   const item = p?.item;
+  const key = item ? `${item.uri || ''}|${item.name}` : '';
+  if (key !== renderMusic.key) {
+    if (renderMusic.key !== undefined) $$('.music, .mini-music').forEach((el) => replay(el, 'swap'));
+    renderMusic.key = key;
+  }
+  if ((item?.uri || '') !== nowUri) { nowUri = item?.uri || ''; liked.markCurrent(); }
   const set = (key, v) => $$(`[data-music="${key}"]`).forEach((el) => { el.textContent = v; });
   if (!item) {
     set('title', 'Nothing playing'); set('artist', 'Pick something in Spotify'); set('status', 'IDLE');
@@ -362,7 +385,7 @@ const music = {
   },
   async tick() {
     clearTimeout(this.timer);
-    const visible = document.visibilityState === 'visible' && (current === 'dash' || current === 'nav');
+    const visible = document.visibilityState === 'visible' && (current === 'dash' || current === 'nav' || current === 'music');
     if (!visible || !spotify.isLoggedIn()) return; // restarted by show() / visibilitychange
     try {
       const p = await spotify.getPlayer();
@@ -392,6 +415,121 @@ document.addEventListener('click', async (e) => {
     handleSpotifyError(err);
     music.kick();
   }
+});
+
+// ---------------------------------------------------------------- liked songs
+const fmtTrackTime = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
+
+const liked = {
+  tracks: [],
+  total: null,
+  next: true,
+  loading: false,
+  loadedAt: 0,
+  observer: null,
+
+  open() {
+    // Re-use the list for 5 min; reopening is instant and costs no network.
+    if (this.tracks.length && Date.now() - this.loadedAt < 5 * 60 * 1000) { this.shown = 0; this.render(); return; }
+    this.tracks = []; this.total = null; this.next = true; this.shown = 0;
+    $('#liked-list').replaceChildren(h('div', { class: 'liked-msg' }, 'Loading your Liked Songs…'));
+    $('#liked-count').textContent = 'Loading…';
+    this.loadMore();
+  },
+
+  async loadMore() {
+    if (this.loading || !this.next) return;
+    this.loading = true;
+    try {
+      const page = await spotify.getLiked(this.tracks.length, 50);
+      const items = (page?.items || []).map((x) => x.track).filter((t) => t && t.uri && !t.is_local);
+      this.tracks.push(...items);
+      this.total = page?.total ?? this.tracks.length;
+      this.next = !!page?.next;
+      this.loadedAt = Date.now();
+      this.render();
+    } catch (e) {
+      this.showError(e);
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  showError(e) {
+    if (e instanceof AuthError || e.name === 'AuthError') { handleSpotifyError(e); return; }
+    const box = h('div', { class: 'liked-msg' }, e.message);
+    if (e.code === 'SCOPE') {
+      box.append(h('button', { class: 'btn-play', type: 'button', onclick: () => { spotify.logout(); spotify.login().catch((err) => toast(err.message)); } }, 'Reconnect Spotify'));
+    } else {
+      box.append(h('button', { class: 'btn-secondary', type: 'button', onclick: () => { this.loadedAt = 0; this.open(); } }, 'Try again'));
+    }
+    $('#liked-list').replaceChildren(box);
+    $('#liked-count').textContent = '';
+  },
+
+  row(t, i) {
+    const imgs = t.album?.images || [];
+    const small = imgs[imgs.length - 1]?.url;          // smallest (~64 px) — light on data and memory
+    const art = h('span', { class: 'song-art' });
+    if (small && !settings.saver) art.append(h('img', { src: small, alt: '', loading: 'lazy', decoding: 'async' }));
+    else { const ph = h('span'); setIcon(ph, 'music'); art.append(ph); }
+    const eq = h('span', { class: 'song-eq', hidden: t.uri !== nowUri }); setIcon(eq, 'eq');
+    return h('button', { class: `song${t.uri === nowUri ? ' current' : ''}`, type: 'button', role: 'listitem', dataset: { uri: t.uri }, onclick: () => this.playFrom(i) },
+      art,
+      h('span', { class: 'song-text' }, h('span', { class: 'song-title' }, t.name), h('span', { class: 'song-artist' }, (t.artists || []).map((a) => a.name).join(', '))),
+      eq,
+      h('span', { class: 'song-time' }, fmtTrackTime(t.duration_ms || 0)));
+  },
+
+  render() {
+    const list = $('#liked-list');
+    $('#liked-count').textContent = this.total != null ? `${this.total} song${this.total === 1 ? '' : 's'}` : '';
+    if (!this.tracks.length) {
+      list.replaceChildren(h('div', { class: 'liked-msg' }, 'No Liked Songs yet. Tap the heart on a song in Spotify to add it.'));
+      return;
+    }
+    const sentinel = h('div', { class: 'liked-more' });
+    const from = this.shown || 0;
+    const rows = this.tracks.map((t, i) => {
+      const r = this.row(t, i);
+      if (i >= from) { r.classList.add('anim-in'); r.style.setProperty('--i', Math.min(i - from, 12)); }
+      return r;
+    });
+    this.shown = this.tracks.length;
+    list.replaceChildren(...rows, sentinel);
+    // Load the next page only when you scroll near the bottom.
+    this.observer?.disconnect();
+    if (this.next) {
+      this.observer = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) this.loadMore(); }, { root: list, rootMargin: '300px' });
+      this.observer.observe(sentinel);
+    }
+  },
+
+  markCurrent() {
+    $$('#liked-list .song').forEach((el) => {
+      const on = el.dataset.uri === nowUri;
+      el.classList.toggle('current', on);
+      el.querySelector('.song-eq').hidden = !on;
+    });
+  },
+
+  async play(uris) {
+    if (!uris.length) return;
+    try {
+      setPlaying(true);
+      await spotify.playTracks(uris.slice(0, 100));
+      setTimeout(() => music.kick(), 700);
+    } catch (e) { handleSpotifyError(e); music.kick(); }
+  },
+
+  playFrom(i) { this.play(this.tracks.slice(i).map((t) => t.uri)); },
+};
+
+$('#btn-play-all').addEventListener('click', () => liked.playFrom(0));
+$('#btn-shuffle').addEventListener('click', () => {
+  const uris = liked.tracks.map((t) => t.uri);
+  for (let i = uris.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [uris[i], uris[j]] = [uris[j], uris[i]]; }
+  liked.play(uris);
 });
 
 // ---------------------------------------------------------------- login & keys

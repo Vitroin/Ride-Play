@@ -45,6 +45,13 @@ Sign up at https://openrouteservice.org/dev → create a token. The free plan's 
 
 ---
 
+## Features
+
+- **Dashboard:** speed dial (changes colour as you go faster), trip distance, ride time, average and top speed, clock, GPS status.
+- **Navigation:** in-app map, turn-by-turn with voice, automatic rerouting, saved places.
+- **Music:** Spotify now playing with play/pause/skip. Tap the song to open **Liked Songs**; tap any song to play from there, or use Play or Shuffle.
+- **Themes:** Dark / Light / Auto. **Animations:** short and smooth; turned off by battery saver or iOS *Reduce Motion*.
+
 ## How it saves battery
 
 - **Dark theme by default.** iPhone OLED screens use much less power showing black. Light and Auto themes are one tap away (the sun/moon button).
@@ -53,7 +60,8 @@ Sign up at https://openrouteservice.org/dev → create a token. The free plan's 
 - **Spotify is only asked "what's playing" while it's on screen:** every 5 s when playing, every 12 s when paused, and never when hidden.
 - **The map only redraws when you've moved a few metres.** Routes and markers are drawn on one canvas.
 - **Battery saver (leaf button):** music updates every 15 s, standard-resolution map tiles (about ¼ the data), no animations, no album art.
-- **No constant animations and no blur effects.** The clock updates once a minute.
+- **Animations are short one-offs** that only fade, slide or scale. There are no looping animations and no blur effects. The clock updates once a minute.
+- **Liked Songs** loads 50 at a time as you scroll, uses the smallest album art, and is reused for 5 minutes instead of re-downloaded.
 
 The screen plus GPS will still use battery on long rides. **A USB charger on the bike is the real fix.**
 

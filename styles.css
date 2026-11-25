@@ -210,10 +210,37 @@ code { font-size: 11px; word-break: break-all; -webkit-user-select: all; user-se
 .ctl { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--card-2); font-size: 22px; display: inline-flex; align-items: center; justify-content: center; }
 .ctl-main { width: 74px; height: 74px; background: var(--magenta); color: #fff; font-size: 30px; }
 .ctl.sm { width: 50px; height: 50px; font-size: 20px; }
-.ctl:active, .btn-round:active, .tile:active { transform: scale(0.96); }
 .i-pause { display: none !important; }
 body[data-playing="true"] .i-pause { display: inline-flex !important; }
 body[data-playing="true"] .i-play { display: none !important; }
+
+/* music card: tap area opens Liked Songs */
+.music-open { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 14px; border-radius: 16px; }
+.music-open .music-info { display: flex; flex-direction: column; }
+.open-hint { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--magenta); }
+.open-hint [data-icon] { font-size: 12px; }
+.music-open:active { opacity: 0.7; }
+
+/* ---------- liked songs ---------- */
+.music-screen { display: flex; flex-direction: column; gap: 10px; }
+.music-top { display: flex; align-items: center; gap: 12px; }
+.liked-badge { width: 52px; height: 52px; border-radius: 14px; background: var(--magenta); color: #fff; font-size: 24px; }
+.music-title h2 { margin: 0; font-size: 22px; font-weight: 700; }
+.icon-text { display: inline-flex; align-items: center; gap: 8px; height: 52px; font-size: 15px; }
+.btn-play { height: 52px; padding: 0 22px; border: none; border-radius: 999px; background: var(--magenta); color: #fff; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 8px; }
+.liked-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; padding-bottom: 8px; }
+.song { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 14px 8px 8px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); text-align: left; min-width: 0; }
+.song-art { position: relative; width: 48px; height: 48px; flex: none; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--magenta) 18%, var(--card-2)); color: var(--magenta); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.song-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.song-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.song-title { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-artist { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.song.current { border-color: var(--magenta); background: color-mix(in srgb, var(--magenta) 10%, var(--card)); }
+.song.current .song-title { color: var(--magenta); }
+.song-eq { color: var(--magenta); font-size: 16px; }
+.liked-more { grid-column: 1 / -1; height: 4px; }
+.liked-msg { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--muted); font-size: 15px; padding: 16px; border: 1px dashed var(--line); border-radius: 18px; }
 
 /* ---------- places ---------- */
 .places { display: flex; flex-direction: column; gap: 10px; }
@@ -287,12 +314,80 @@ body[data-playing="true"] .i-play { display: none !important; }
 .nav-stat { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .nav-stat .stat { font-size: 22px; }
 
+
+/* =========================================================
+   Motion — short, one-shot, transform/opacity only (GPU-composited,
+   cheap on battery). Off in battery saver and with iOS Reduce Motion.
+   ========================================================= */
+:root { --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* press feedback on everything tappable */
+button, .tile, .song, .place-main, .music-open, .seg button {
+  transition: transform 0.16s var(--ease-out), background-color 0.2s, border-color 0.25s, color 0.2s, opacity 0.2s, box-shadow 0.2s;
+}
+button:active, .tile:active, .song:active, .place-main:active, .music-open:active { transform: scale(0.95); }
+.ctl-main:active, .btn-primary:active, .btn-play:active { transform: scale(0.92); }
+.speed-card { transition: border-color 0.4s, transform 0.16s var(--ease-out); }
+.speed-card:active { transform: scale(0.98); }
+
+/* screen transitions */
+@keyframes in-fwd  { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes in-back { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.screen.enter-fwd  { animation: in-fwd 0.28s var(--ease-out) both; }
+.screen.enter-back { animation: in-back 0.28s var(--ease-out) both; }
+.screen.enter-fade { animation: fade-in 0.3s ease-out both; }
+
+/* lists & tiles cascade in */
+@keyframes item-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.anim-in { animation: item-in 0.32s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
+
+/* play ⇄ pause icon pop */
+@keyframes pop { from { transform: scale(0.4) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.ctl-main [data-icon] { animation: pop 0.26s var(--ease-spring); }
+
+/* track change: text slides, art fades */
+@keyframes swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.swap .track, .swap .artist { animation: swap-in 0.3s var(--ease-out) both; }
+.swap .artist { animation-delay: 0.05s; }
+.swap img { animation: fade-in 0.4s ease-out both; }
+
+/* turn card bumps when the next manoeuvre changes */
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.turn.bump { animation: bump 0.35s var(--ease-out); }
+.turn.bump .turn-icon { animation: pop 0.3s var(--ease-spring); }
+
+/* toast slides up */
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.toast:not([hidden]) { animation: toast-in 0.25s var(--ease-out); }
+
+/* End ride arming wiggle */
+@keyframes nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.btn-outline.armed { animation: nudge 0.25s ease-in-out; }
+
+/* liked-songs heart beats once when opened */
+@keyframes beat { 0% { transform: scale(1); } 30% { transform: scale(1.18); } 60% { transform: scale(0.95); } 100% { transform: scale(1); } }
+.screen.enter-fwd .liked-badge { animation: beat 0.5s var(--ease-out) 0.15s; }
+
+/* setup panel opens smoothly */
+.setup[open] label, .setup[open] p, .setup[open] .btn-secondary { animation: swap-in 0.25s var(--ease-out) both; }
+
+/* theme switch: colours cross-fade for a moment */
+html.theming, html.theming * { transition: background-color 0.35s, color 0.35s, border-color 0.35s, fill 0.35s, stroke 0.35s !important; }
+
+/* off switches */
+body.saver *, body.saver *::before, body.saver *::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; z-index: 2000; left: 50%; transform: translateX(-50%);
   bottom: calc(max(12px, env(safe-area-inset-bottom)) + 90px);
   background: var(--text); color: var(--bg); font-weight: 600; font-size: 15px;
   padding: 12px 18px; border-radius: 999px; max-width: 80vw; text-align: center;
+  pointer-events: none; /* never block taps underneath */
 }
 
 /* ---------- battery saver: no transitions, no album art ---------- */
@@ -304,7 +399,8 @@ body.saver [data-music="img"] { display: none !important; }
   .dash { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1.1fr) auto; overflow-y: auto; }
   .dash-right { min-height: 380px; }
   .login { grid-template-columns: 1fr; }
-  .places-grid { grid-template-columns: 1fr; }
+  .places-grid, .liked-list { grid-template-columns: 1fr; }
+  .music-top { flex-wrap: wrap; }
   .places-top { flex-wrap: wrap; }
   .seg { order: 3; width: 100%; } .seg button { flex: 1; justify-content: center; }
   .turn { width: calc(100vw - 28px); }

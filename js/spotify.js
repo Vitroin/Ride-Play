@@ -6,7 +6,7 @@ import { readJSON, writeJSON } from './util.js';
 const AUTH = 'https://accounts.spotify.com/authorize';
 const TOKEN = 'https://accounts.spotify.com/api/token';
 const API = 'https://api.spotify.com/v1';
-const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read';
 const TOKENS = 'md.spotify';
 const PKCE = 'md.pkce';
 
@@ -105,6 +105,10 @@ async function api(path, { method = 'GET', body } = {}, retried = false) {
     e.status = r.status;
     e.reason = j?.error?.reason;
     if (r.status === 403 && e.reason === 'PREMIUM_REQUIRED') e.message = 'Playback control needs Spotify Premium.';
+    if (r.status === 403 && /scope/i.test(e.message)) {
+      e.code = 'SCOPE';
+      e.message = 'Reconnect Spotify to allow access to your Liked Songs.';
+    }
     throw e;
   }
   return j;
@@ -123,8 +127,9 @@ async function withDevice(fn) {
       err.code = 'NO_DEVICE';
       throw err;
     }
-    await api('/me/player', { method: 'PUT', body: { device_ids: [d.id], play: true } });
-    return null;
+    await api('/me/player', { method: 'PUT', body: { device_ids: [d.id], play: false } });
+    await new Promise((r) => setTimeout(r, 600));
+    return fn();
   }
 }
 
@@ -132,3 +137,9 @@ export const play = () => withDevice(() => api('/me/player/play', { method: 'PUT
 export const pause = () => api('/me/player/pause', { method: 'PUT' });
 export const next = () => withDevice(() => api('/me/player/next', { method: 'POST' }));
 export const previous = () => withDevice(() => api('/me/player/previous', { method: 'POST' }));
+
+/** One page of the user's Liked Songs (max 50 per request). */
+export const getLiked = (offset = 0, limit = 50) => api(`/me/tracks?limit=${limit}&offset=${offset}`);
+
+/** Play a list of track URIs, starting with the first. */
+export const playTracks = (uris) => withDevice(() => api('/me/player/play', { method: 'PUT', body: { uris } }));

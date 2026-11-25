@@ -106,12 +106,15 @@
       <div id="place-tiles" class="tiles"></div>
 
       <div class="card music">
-        <div class="art"><img data-music="img" alt="" hidden><span class="art-ph" data-icon="music"></span></div>
-        <div class="music-info">
-          <div class="eyebrow"><span class="live-dot"></span><span data-music="status">CONNECTING</span></div>
-          <div class="track" data-music="title">—</div>
-          <div class="artist" data-music="artist">&nbsp;</div>
-        </div>
+        <button class="music-open" type="button" data-go="music" aria-label="Open Liked Songs">
+          <span class="art"><img data-music="img" alt="" hidden><span class="art-ph" data-icon="music"></span></span>
+          <span class="music-info">
+            <span class="eyebrow"><span class="live-dot"></span><span data-music="status">CONNECTING</span></span>
+            <span class="track" data-music="title">—</span>
+            <span class="artist" data-music="artist">&nbsp;</span>
+            <span class="open-hint"><span data-icon="heart"></span>Liked Songs<span data-icon="chevron"></span></span>
+          </span>
+        </button>
         <div class="controls">
           <button class="ctl" type="button" data-action="prev" aria-label="Previous track"><span data-icon="prev"></span></button>
           <button class="ctl ctl-main" type="button" data-action="toggle" aria-label="Play or pause"><span class="i-play" data-icon="play"></span><span class="i-pause" data-icon="pause"></span></button>
@@ -147,6 +150,19 @@
         <button id="btn-logout" class="link-btn" type="button"><span data-icon="logout"></span>Log out of Spotify</button>
       </div>
     </div>
+  </section>
+
+  <!-- ============ LIKED SONGS ============ -->
+  <section id="screen-music" class="screen music-screen" hidden>
+    <div class="music-top">
+      <button class="btn-round" type="button" data-go="dash" aria-label="Back to dashboard"><span data-icon="back"></span></button>
+      <span class="liked-badge" data-icon="heart"></span>
+      <div class="music-title"><h2>Liked Songs</h2><div id="liked-count" class="tiny muted">Loading…</div></div>
+      <span class="spacer"></span>
+      <button id="btn-shuffle" class="btn-secondary icon-text" type="button"><span data-icon="shuffle"></span>Shuffle</button>
+      <button id="btn-play-all" class="btn-play" type="button"><span data-icon="play"></span>Play</button>
+    </div>
+    <div id="liked-list" class="liked-list" role="list"></div>
   </section>
 
   <!-- ============ NAVIGATION ============ -->
