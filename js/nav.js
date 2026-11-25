@@ -54,8 +54,41 @@ export class NavSession {
   setSaver(on) { this.saver = on; this.tiles.setUrl(this._tileUrl()); }
   resize() { setTimeout(() => this.map.invalidateSize(), 60); }
 
-  async start(dest, pos, accent) {
+  _markDest(dest) {
+    this.destMarker = L.circleMarker([dest.lat, dest.lng], { radius: 10, color: '#07070D', weight: 4, fillColor: '#FFFFFF', fillOpacity: 1 }).addTo(this.map);
+  }
+
+  /**
+   * Show a place and the route to it without starting guidance (the map stops following
+   * you so the whole route stays in view). Returns the route so Go can reuse it.
+   * Throws if the route can't be found; the place marker stays on the map.
+   */
+  async preview(dest, pos, accent, route = null) {
     this.stop();
+    const token = (this.previewToken = {});
+    this.accent = accent;
+    this.dest = dest;
+    this.follow = false;
+    this._markDest(dest);
+    this.map.setView([dest.lat, dest.lng], 15, { animate: false });
+    if (!route && pos) route = await fetchRoute(pos, dest);
+    if (this.previewToken !== token || this.active) return route;   // superseded meanwhile
+    if (route) {
+      this._setRoute(route);
+      this.map.fitBounds(this.line.getBounds(), { padding: [36, 36], maxZoom: 16, animate: false });
+    }
+    return route;
+  }
+
+  clearPreview() {
+    this.previewToken = null;
+    if (!this.active) this.stop();
+    this.recenter();
+  }
+
+  async start(dest, pos, accent, route = null) {
+    this.stop();
+    this.previewToken = null;
     this.accent = accent;
     this.dest = dest;
     this.active = true;
@@ -64,8 +97,11 @@ export class NavSession {
     this.offCount = 0;
     this.lastReroute = 0;
     this.announced = new Set();
-    this.destMarker = L.circleMarker([dest.lat, dest.lng], { radius: 10, color: '#07070D', weight: 4, fillColor: '#FFFFFF', fillOpacity: 1 }).addTo(this.map);
-    if (pos) await this._route(pos);
+    this._markDest(dest);
+    if (route) {
+      this._setRoute(route);
+      if (pos) this.update(pos, null);
+    } else if (pos) await this._route(pos);
     else {
       this.map.setView([dest.lat, dest.lng], 15, { animate: false });
       this.cb.onUpdate({ state: 'waiting' });

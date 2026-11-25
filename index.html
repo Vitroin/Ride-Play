@@ -162,6 +162,23 @@
         </div>
       </div>
 
+      <!-- place preview: the route on the map, then Go (or Apple Maps) -->
+      <div id="maps-place" class="card dest-panel place-panel" hidden>
+        <div class="place-head">
+          <button id="btn-place-back" class="btn-round" type="button" aria-label="Back to favourites"><span data-icon="back"></span></button>
+          <div class="place-title"><div id="place-name" class="place-name">—</div><div id="place-label" class="place-label"></div></div>
+        </div>
+        <div class="place-stats">
+          <div><span id="place-time" class="stat">–</span><span class="stat-label">min</span></div>
+          <div><span id="place-dist" class="stat">–</span><span id="place-dist-unit" class="stat-label">km</span></div>
+          <div><span id="place-eta" class="stat">--:--</span><span class="stat-label">arrival</span></div>
+        </div>
+        <p id="place-msg" class="place-msg" hidden></p>
+        <span class="spacer"></span>
+        <button id="btn-place-go" class="btn-primary green" type="button"><span data-icon="route"></span>Go</button>
+        <button id="btn-place-apple" class="btn-secondary" type="button"><span data-icon="external"></span>Open in Apple Maps</button>
+      </div>
+
       <!-- shown instead of the panel when it's hidden -->
       <button id="btn-panel-show" class="card where-pill" type="button" hidden><span data-icon="search"></span><span>Where to?</span></button>
 
@@ -290,10 +307,6 @@
               </div></div>
             <div class="set-row"><span class="app-icon xs ai-maps" data-icon="volume"></span><span class="set-label">Voice guidance</span>
               <button class="switch" type="button" role="switch" aria-checked="true" data-setting="voice" aria-label="Voice guidance"><span class="knob"></span></button></div>
-            <div class="set-row"><span class="app-icon xs ai-maps" data-icon="map"></span><span class="set-label">Navigate with</span>
-              <div class="seg" role="group" aria-label="Navigate with" data-setting="mapsMode">
-                <button type="button" data-val="inapp">Moto Dash</button><button type="button" data-val="apple">Apple Maps</button>
-              </div></div>
             <div class="set-row"><span class="app-icon xs ai-yellow" data-icon="satellite"></span><span class="set-label">GPS diagnostics<small>Or hold the speed dial</small></span>
               <button class="switch" type="button" role="switch" aria-checked="false" data-setting="diag" aria-label="GPS diagnostics"><span class="knob"></span></button></div>
             <div class="set-row"><span class="app-icon xs ai-red" data-icon="flag"></span><span class="set-label">Trip</span>

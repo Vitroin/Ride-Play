@@ -16,7 +16,7 @@ const AuthError = realSpotify.AuthError;
 
 // ================================================================ settings
 const settings = {
-  imperial: false, mapsMode: 'inapp', voice: true, theme: 'auto', saver: false, diag: false,
+  imperial: false, voice: true, theme: 'auto', saver: false, diag: false,
   glass: false, artTint: true, autoDim: true, dimAfter: '60', mapPanel: 'open',
   ...readJSON('md.settings', {}),
 };
@@ -247,7 +247,7 @@ const awayText = (p) => (gps.position ? `${shortDist(haversine(gps.position, p))
 
 function destRow(p, i, side, meta) {
   return h('div', { class: 'dest-row' },
-    h('button', { class: 'dest-main', type: 'button', onclick: () => startNavigation(p) },
+    h('button', { class: 'dest-main', type: 'button', onclick: () => previewPlace(p) },
       placeChip(p, i),
       h('span', { class: 'dest-text' }, h('span', { class: 'dest-name' }, p.name), h('span', { class: 'dest-meta' }, meta ?? awayText(p)))),
     side);
@@ -334,7 +334,7 @@ $('#btn-recenter').addEventListener('click', () => nav?.recenter());
 // The "Where to?" panel can be tucked away for a full-width map, and comes back as a small pill.
 function setMapPanel(state) {
   settings.mapPanel = state; saveSettings();
-  if (current === 'maps') setGuideMode(navigating);
+  if (current === 'maps' && mapMode === 'browse') setMapMode('browse');
 }
 $('#btn-panel-hide').addEventListener('click', () => setMapPanel('hidden'));
 $('#btn-panel-show').addEventListener('click', () => setMapPanel('open'));
@@ -348,7 +348,7 @@ function ensureNav() {
       navigating = false;
       dimmer.poke();
       renderNav({ state: 'arrived' });
-      setTimeout(() => { if (!navigating) setGuideMode(false); }, 5000);
+      setTimeout(() => { if (!navigating) setMapMode('browse'); }, 5000);
     },
     speak,
   });
@@ -357,22 +357,80 @@ function ensureNav() {
   return nav;
 }
 
-function setGuideMode(on) {
-  const hidePanel = settings.mapPanel === 'hidden';
-  $('#screen-maps').classList.toggle('browsing', !on);
-  $('#screen-maps').classList.toggle('panel-hidden', !on && hidePanel);
-  $('#maps-browse').hidden = on || hidePanel;
-  $('#btn-panel-show').hidden = on || !hidePanel;
-  $('#maps-guide').hidden = !on;
-  $('#btn-voice').hidden = !on;
+// Maps has three modes: 'browse' (search + favourites), 'preview' (a place and its route,
+// with Go), and 'guide' (turn-by-turn).
+let mapMode = 'browse';
+function setMapMode(mode) {
+  mapMode = mode;
+  const hidePanel = mode === 'browse' && settings.mapPanel === 'hidden';
+  const el = $('#screen-maps');
+  el.classList.toggle('browsing', mode !== 'guide');
+  el.classList.toggle('panel-hidden', hidePanel);
+  $('#maps-browse').hidden = mode !== 'browse' || hidePanel;
+  $('#btn-panel-show').hidden = mode !== 'browse' || !hidePanel;
+  $('#maps-place').hidden = mode !== 'preview';
+  $('#maps-guide').hidden = mode !== 'guide';
+  $('#btn-voice').hidden = mode !== 'guide';
   nav?.resize();
 }
 
 function openMaps() {
   ensureNav();
-  setGuideMode(navigating);
-  if (!navigating) renderPlaces();
+  setMapMode(navigating ? 'guide' : mapMode === 'guide' ? 'browse' : mapMode);
+  if (mapMode === 'browse') renderPlaces();
   if (gps.position) nav.update(gps.position, gps.accuracy);
+}
+
+// ---- place preview: tap a favourite or a search result → see it and the route on the map
+let previewed = null;
+function setPlaceStats(r) {
+  const has = !!r;
+  $('#place-time').textContent = has ? String(Math.max(1, Math.round(r.duration / 60))) : '–';
+  const d = has ? distParts(r.distance) : null;
+  $('#place-dist').textContent = has ? d.v : '–';
+  $('#place-dist-unit').textContent = has ? d.u : (settings.imperial ? 'mi' : 'km');
+  $('#place-eta').textContent = has ? fmtClock(new Date(Date.now() + r.duration * 1000)) : '--:--';
+}
+function placeMsg(text) { $('#place-msg').textContent = text; $('#place-msg').hidden = !text; }
+
+async function previewPlace(place) {
+  const mine = { place, route: null };
+  previewed = mine;
+  mapMode = 'preview';
+  show('maps');
+  $('#place-name').textContent = place.name;
+  $('#place-label').textContent = place.label || (gps.position ? `${shortDist(haversine(gps.position, place))} away` : '');
+  setPlaceStats(null);
+  placeMsg(DEMO || gps.position ? 'Finding the best route…' : 'Waiting for GPS to plan the route. You can still tap Go.');
+  try {
+    const r = await nav.preview(place, DEMO ? null : gps.position, css('--blue') || '#0A84FF', DEMO ? demoRoute() : null);
+    if (previewed !== mine) return;
+    mine.route = r;
+    setPlaceStats(r);
+    if (r) placeMsg('');
+  } catch (e) {
+    if (previewed === mine) placeMsg(`${e.message}. Go will try again.`);
+  }
+}
+$('#btn-place-go').addEventListener('click', () => { if (previewed) startNavigation(previewed.place, previewed.route); });
+$('#btn-place-apple').addEventListener('click', () => { if (previewed) openInAppleMaps(previewed.place); });
+$('#btn-place-back').addEventListener('click', () => {
+  previewed = null;
+  nav?.clearPreview();
+  setMapMode('browse');
+  renderPlaces();
+});
+
+/**
+ * Hand a destination to Apple Maps. On iPhone the maps:// link opens the Maps app directly,
+ * so the home-screen app is never navigated away (an https link went through Safari, and
+ * coming back could leave Moto Dash stuck until it was restarted).
+ */
+function openInAppleMaps(p) {
+  const q = `daddr=${p.lat},${p.lng}&dirflg=d`;
+  const ios = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) location.href = `maps://?${q}`;
+  else window.open(`https://maps.apple.com/?${q}`, '_blank', 'noopener');
 }
 
 let destName = '';
@@ -396,11 +454,8 @@ function renderNav(s) {
   $('#nav-dist').textContent = d.v; $('#nav-dist-unit').textContent = d.u;
 }
 
-async function startNavigation(place) {
-  if (settings.mapsMode === 'apple') {
-    window.open(`https://maps.apple.com/?daddr=${place.lat},${place.lng}&dirflg=d`, '_blank');
-    return;
-  }
+async function startNavigation(place, route = null) {
+  previewed = null;
   destName = place.name;
   $('#nav-dest').textContent = place.name;
   $('#nav-eta').textContent = '--:--'; $('#nav-time').textContent = '–'; $('#nav-dist').textContent = '–';
@@ -408,19 +463,18 @@ async function startNavigation(place) {
   renderNav.last = null;
   show('maps');
   speechUnlock();
-  const route = css('--blue') || '#0A84FF';
+  const accent = css('--blue') || '#0A84FF';
   if (DEMO) {
-    await nav.start(place, null, route);
-    nav._setRoute(demoRoute());
+    await nav.start(place, null, accent, route || demoRoute());
     nav.update(gps.position, 5);
   } else {
-    await nav.start(place, gps.position, route);
+    await nav.start(place, gps.position, accent, route);
   }
   updateAwake();
 }
 $('#btn-nav-end').addEventListener('click', () => {
   navigating = false; nav?.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel();
-  setGuideMode(false); renderPlaces();
+  setMapMode('browse'); renderPlaces();
   if (gps.position) nav.update(gps.position, gps.accuracy);
   updateAwake();
 });
