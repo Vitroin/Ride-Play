@@ -9,6 +9,7 @@ import { setAwake } from './wakelock.js';
 import { hydrateIcons, setIcon, placeIcon, PLACE_COLORS, turnIcon } from './icons.js';
 import { DEMO, DemoGps, demoSpotify, demoRoute, DEMO_PLACES } from './demo.js';
 import { artPalette } from './artcolor.js';
+import * as webplayer from './webplayer.js';
 import { $, $$, h, haversine, fmtDuration, fmtClock, toast, readJSON, writeJSON } from './util.js';
 
 const spotify = DEMO ? demoSpotify() : realSpotify;
@@ -17,7 +18,7 @@ const AuthError = realSpotify.AuthError;
 // ================================================================ settings
 const settings = {
   imperial: false, voice: true, theme: 'auto', saver: false, diag: false,
-  glass: false, artTint: true, autoDim: true, dimAfter: '60', mapPanel: 'open',
+  glass: false, artTint: true, autoDim: true, dimAfter: '60', mapPanel: 'open', inAppAudio: false,
   ...readJSON('md.settings', {}),
 };
 const saveSettings = () => writeJSON('md.settings', settings);
@@ -833,6 +834,56 @@ document.addEventListener('visibilitychange', () => {
   progress.sync();
 });
 
+// ================================================================ music: play inside RidePlay
+// With "Play music in RidePlay" on, Spotify's in-browser player makes RidePlay its own Spotify
+// device, so nothing in the background can fall asleep during a long pause.
+let stateKick = null;
+const inApp = {
+  async start({ transfer = true, quiet = false } = {}) {
+    if (DEMO) { toast('Not available in demo mode', 2000); this.off(); return false; }
+    if (!(await realSpotify.hasScopes(['streaming']))) { this.needPermission(); return false; }
+    try {
+      const id = await webplayer.start(realSpotify.getToken, {
+        onError: (e) => (e.code === 'playback_error' ? toast(e.message, 3000) : this.fail(e)),
+        onState: () => { clearTimeout(stateKick); stateKick = setTimeout(() => music.kick(), 300); },
+      });
+      realSpotify.preferDevice(id);
+      if (transfer) await realSpotify.transferTo(id, player.isPlaying).catch(() => {});
+      if (!quiet) toast('Music now plays in RidePlay', 1800);
+      setTimeout(() => music.kick(), 700);
+      return true;
+    } catch (e) {
+      if (e.message !== 'stopped') this.fail(e);
+      return false;
+    }
+  },
+  stop() {
+    webplayer.stop();
+    realSpotify.preferDevice(null);
+  },
+  off() { settings.inAppAudio = false; saveSettings(); if (current === 'settings') renderSettings(); this.stop(); },
+  fail(e) {
+    this.off();
+    if (e.code === 'authentication_error') this.needPermission();
+    else toast(`${e.message} Using the Spotify app instead.`, 4500);
+  },
+  needPermission() {
+    // Older logins don't include the permission to play music; one reconnect adds it.
+    if (confirm('RidePlay needs one more Spotify permission to play music itself. Reconnect Spotify now?')) {
+      settings.inAppAudio = true; saveSettings();
+      realSpotify.logout();
+      realSpotify.login().catch((err) => toast(err.message, 3500));
+    } else this.off();
+  },
+};
+// iPhone only allows sound that starts from a tap: unlock the in-app player on taps of music controls.
+document.addEventListener('click', (e) => {
+  if (settings.inAppAudio && e.target.closest('[data-action], .song, .pl-tile, #btn-play-all, #btn-shuffle, #wake-open')) webplayer.activate();
+}, true);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && settings.inAppAudio && !DEMO && realSpotify.isLoggedIn() && !webplayer.device()) inApp.start({ transfer: false, quiet: true });
+});
+
 async function control(fn) {
   try { await fn(); setTimeout(() => music.kick(), 650); } catch (err) { handleSpotifyError(err, false, fn); music.kick(); }
 }
@@ -1039,6 +1090,10 @@ function changeSetting(key, val) {
   if (key === 'saver') { applySaver(); music.kick(); progress.sync(); updateArtTint(); }
   if (key === 'glass') applyGlass();
   if (key === 'artTint') updateArtTint();
+  if (key === 'inAppAudio') {
+    if (val) inApp.start();
+    else { inApp.stop(); toast('Music control goes back to the Spotify app', 2200); }
+  }
   if (key === 'autoDim' || key === 'dimAfter') { updateAwake(); dimmer.arm(); if (!settings.autoDim) dimmer.wake(); }
   if (key === 'imperial') applyUnits();
   if (key === 'voice') applyVoice();
@@ -1081,7 +1136,11 @@ $('#btn-login').addEventListener('click', async () => {
   try { await spotify.login(); } catch (e) { showLoginError(e.message); $('#setup').open = true; }
 });
 
-function enterApp() { gps.start(); show('dash'); }
+function enterApp() {
+  gps.start();
+  show('dash');
+  if (settings.inAppAudio) inApp.start({ transfer: false, quiet: true });
+}
 
 // ================================================================ boot
 async function boot() {

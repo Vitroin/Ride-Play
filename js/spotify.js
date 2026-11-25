@@ -1,12 +1,14 @@
 // Spotify Web API with Authorization Code + PKCE — no server, no client secret.
-// Playback actually happens in the Spotify app; this is a remote control.
+// By default playback happens in the Spotify app and this is a remote control; with
+// "Play music in RidePlay" on, js/webplayer.js makes RidePlay itself the Spotify device.
 import { getKeys } from './keys.js';
 import { readJSON, writeJSON } from './util.js';
 
 const AUTH = 'https://accounts.spotify.com/authorize';
 const TOKEN = 'https://accounts.spotify.com/api/token';
 const API = 'https://api.spotify.com/v1';
-const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read playlist-read-private playlist-read-collaborative';
+// streaming + user-read-email + user-read-private: needed to play music inside RidePlay.
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read playlist-read-private playlist-read-collaborative streaming user-read-email user-read-private';
 const TOKENS = 'md.spotify';
 const PKCE = 'md.pkce';
 
@@ -75,7 +77,17 @@ async function tokenRequest(params) {
     access_token: j.access_token,
     refresh_token: j.refresh_token || prev.refresh_token,   // refresh tokens may rotate
     expires_at: Date.now() + (j.expires_in - 60) * 1000,
+    scope: j.scope ?? prev.scope ?? null,   // what the user actually granted
   });
+}
+
+/** Does the current login include these permissions? (Older logins don't record it: refresh once to find out.) */
+export async function hasScopes(list) {
+  let t = readJSON(TOKENS, null);
+  if (!t?.refresh_token) return false;
+  if (t.scope == null) { await accessToken(true).catch(() => {}); t = readJSON(TOKENS, null); }
+  const have = new Set(String(t?.scope || '').split(/\s+/));
+  return list.every((x) => have.has(x));
 }
 
 let refreshing = null;
@@ -88,6 +100,15 @@ async function accessToken(force = false) {
   await refreshing;
   return readJSON(TOKENS, null).access_token;
 }
+
+/** A valid access token (for Spotify's in-browser player). */
+export const getToken = () => accessToken();
+
+// The device commands should go to first when nothing is active (RidePlay's own player, if on).
+let preferred = null;
+export const preferDevice = (id) => { preferred = id || null; };
+/** Move playback to a device; play=true starts it there. */
+export const transferTo = (id, play = false) => api('/me/player', { method: 'PUT', body: { device_ids: [id], play } });
 
 async function api(path, { method = 'GET', body } = {}, retried = false) {
   const token = await accessToken(retried);
@@ -134,6 +155,7 @@ async function withDevice(fn) {
     if (e.status !== 404 && e.reason !== 'NO_ACTIVE_DEVICE') throw e;
     const { devices = [] } = (await api('/me/player/devices')) || {};
     const ids = [
+      preferred,
       (devices.find((x) => x.type === 'Smartphone') || devices[0])?.id,
       localStorage.getItem(LAST_DEVICE),
     ].filter(Boolean);

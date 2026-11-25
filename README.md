@@ -118,7 +118,8 @@ You need to see over 5 km/h twice in a row to count as moving, and fall below ab
 - Location stops when the screen locks or you switch apps. Keep RidePlay on screen while riding.
 - If the screen still dims, set **Settings → Display & Brightness → Auto-Lock → Never** for rides.
 - Shuffle can be switched on/off from RidePlay, but **Smart Shuffle** can only be turned on in the Spotify app: Spotify's Web API doesn't offer it. RidePlay shows when it's on.
-- Music actually plays in the Spotify app. RidePlay is a remote control, and Spotify requires **Premium** for that.
+- **Play music in RidePlay** (Settings → Music): RidePlay becomes its own Spotify player, so long pauses can't put anything to sleep. The music stops if RidePlay leaves the screen. Turning it on the first time asks you to reconnect Spotify once (it needs Spotify's playback permission). If your phone's browser can't play Spotify, RidePlay says so and goes back to the Spotify app.
+- Otherwise music plays in the Spotify app. RidePlay is a remote control, and Spotify requires **Premium** for that.
 - Map © OpenStreetMap contributors, tiles © CARTO (free for light personal use). Routing by Valhalla on the FOSSGIS server, search by Photon (komoot).
 
 ## Files

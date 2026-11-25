@@ -148,8 +148,9 @@ body.dock-hidden .dock-show { transform: translate(0, -50%); opacity: 1; pointer
 body.preload *, body.preload *::before { transition: none !important; }
 
 /* A music button picture you supply (icons/music-app.png), e.g. Spotify's official icon. */
-.app-icon.has-img { background: #000; overflow: hidden; }
-.app-icon.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+/* (no overflow:hidden here: it would also clip the white "you're here" bar beside the icon) */
+.app-icon.has-img { background: #000; }
+.app-icon.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; border-radius: inherit; }
 
 /* Rearranging: long-press an app icon → icons jiggle (only while editing) and follow your finger. */
 .dock { touch-action: none; }
