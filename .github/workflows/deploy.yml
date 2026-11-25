@@ -1,4 +1,9 @@
 # Deploys the app to GitHub Pages on every push to main.
+#
+# API keys: add them once as repository secrets and they're built into the
+# site, so you never type them on the phone:
+#   gh secret set SPOTIFY_CLIENT_ID
+#   gh secret set ORS_API_KEY
 name: Deploy to GitHub Pages
 
 on:
@@ -13,29 +18,49 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # let a running deploy finish; the next one queues
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build site
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+        run: |
+          mkdir _site
+          cp -r index.html styles.css sw.js manifest.webmanifest js icons vendor _site/
+          # Keys from repo secrets (empty if not set — the app then asks on the phone).
+          node -e "
+            const k = { SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID || '', ORS_API_KEY: process.env.ORS_API_KEY || '' };
+            require('fs').writeFileSync('_site/config.js', 'export const DEFAULTS = ' + JSON.stringify(k, null, 2) + ';\n');
+            console.log('Spotify Client ID:', k.SPOTIFY_CLIENT_ID ? 'set' : 'NOT SET', '| ORS key:', k.ORS_API_KEY ? 'set' : 'NOT SET');
+          "
+          # New cache name per deploy, so phones pick up the update on next open.
+          sed -i "s/motodash-v1/motodash-${GITHUB_SHA::7}/" _site/sw.js
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-
-      # New cache name per deploy, so phones pick up the update on next open.
-      - name: Stamp service-worker version
-        run: sed -i "s/motodash-v1/motodash-${GITHUB_SHA::7}/" sw.js
-
-      - name: Collect site files
-        run: |
-          mkdir _site
-          cp -r index.html styles.css config.js sw.js manifest.webmanifest js icons vendor _site/
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      # GitHub's artifact service is occasionally slow to register the upload; retry once.
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 20
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
